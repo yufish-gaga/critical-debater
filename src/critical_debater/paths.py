@@ -1,4 +1,11 @@
-"""Filesystem location helpers for the v2 skill-suite assets."""
+"""Filesystem location helpers for the skill-suite assets.
+
+The v3 skill suite (``critical-debater-v3-suite/``) is the preferred source
+of capability instructions; the v2 suite (``critical-debater-suite/``) is the
+fallback. Both bundle ``capabilities/*.md`` which the API-backed agent runner
+injects into prompts, and both may carry the deterministic report renderer
+under ``scripts/``.
+"""
 
 from __future__ import annotations
 
@@ -7,9 +14,20 @@ from pathlib import Path
 
 ENV_SUITE_DIR = "CRITICAL_DEBATER_SUITE_DIR"
 
+# Preferred-first candidates for a bundled skill suite directory.
+SUITE_DIR_NAMES = ("critical-debater-v3-suite", "critical-debater-suite")
+
+
+def _candidate_roots() -> list[Path]:
+    """Directory roots scanned for a bundled suite (module ancestors, then cwd)."""
+    here = Path(__file__).resolve()
+    roots = list(here.parents)
+    roots.append(Path.cwd())
+    return roots
+
 
 def find_suite_dir() -> Path:
-    """Locate the ``critical-debater-suite`` directory (capability docs).
+    """Locate a skill-suite directory containing capability instructions.
 
     Resolution order: env override → walk up from this package (source
     checkout) → cwd. Raises FileNotFoundError when absent.
@@ -21,18 +39,15 @@ def find_suite_dir() -> Path:
             return path
         raise FileNotFoundError(f"{ENV_SUITE_DIR} points to a missing directory: {override}")
 
-    here = Path(__file__).resolve()
-    for ancestor in [here, *here.parents]:
-        candidate = ancestor / "critical-debater-suite"
-        if candidate.is_dir():
-            return candidate
-
-    cwd_candidate = Path.cwd() / "critical-debater-suite"
-    if cwd_candidate.is_dir():
-        return cwd_candidate
+    for root in _candidate_roots():
+        for name in SUITE_DIR_NAMES:
+            candidate = root / name
+            if (candidate / "capabilities").is_dir():
+                return candidate
 
     raise FileNotFoundError(
-        "critical-debater-suite not found; set CRITICAL_DEBATER_SUITE_DIR"
+        f"no skill suite found (looked for {', '.join(SUITE_DIR_NAMES)} with a capabilities/ "
+        f"directory); set {ENV_SUITE_DIR}"
     )
 
 

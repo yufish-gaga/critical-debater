@@ -5,6 +5,7 @@
 | 时间 / Time | 作者 / Author | 变更 / Change |
 |---|---|---|
 | 2026-08-30 | Claude | v3.1: 新增安全边界（API Token 鉴权/工作空间围栏/取消端点）与断点恢复（`--resume`）说明 / v3.1: security boundary + checkpoint resume docs |
+| 2026-08-30 | Claude | 新增 v3 技能库（`critical-debater-v3-suite/`）安装使用说明 / v3 skill suite packaging docs |
 | 2026-08-30 | Claude | 初始创建：项目特点与部署运行指南 / Initial creation: features + deployment guide |
 
 ---
@@ -237,6 +238,44 @@ curl -X POST http://127.0.0.1:8000/api/debates \
 | `cancelled` | 重跑中断的轮次(按 `current_round`) |
 
 > 注意:resume 重跑某轮时会重新派发该轮的 LLM 步骤(产生调用费用);已完成的轮次与初始证据采集绝不重做。
+
+---
+
+### 技能库安装 / Skill-suite installation(v3.1)
+
+`critical-debater-v3-suite/` 将整个 v3 系统封装为可安装的 Agent 技能(与 v2
+`critical-debater-suite` 同构:core 规范 → 生成的 SKILL.md 与三平台适配层):
+
+```
+critical-debater-v3-suite/
+├── SKILL.md                     # 路由(由 core 生成, 勿手改)
+├── core/skill-core.md           # 唯一语义来源 / single source of truth
+├── capabilities/                # 辩论方法论(运行时自动注入模型提示词)
+├── adapters/{claude-code,codex,openclaw}/SKILL.md
+├── references/data-contracts.md # 数据契约
+├── scripts/build-suite.py       # 从 core 重新生成(--check 校验同步)
+├── scripts/check-install.sh     # 安装校验
+├── scripts/render-debate-report-from-json.py
+└── examples/quickstart.md
+```
+
+**作为 Agent 技能安装**(以 Claude Code 为例):将套件目录(或整个仓库)放入技能根
+`.claude/skills/critical-debater-v3-suite`,Agent 读取 SKILL.md 后按路由执行——
+安装(`pip install -e .`)、配置密钥、启动辩论、恢复/取消、解读产物。Codex /
+OpenClaw 同理,见对应 `adapters/` 适配说明。
+
+**作为纯 Python 包**:无需技能目录,直接 `pip install -e .` 即可;运行时通过
+`CRITICAL_DEBATER_SUITE_DIR` 指向套件目录以定位能力文档与渲染器(仓库内自动发现)。
+
+验证安装:
+
+```bash
+bash critical-debater-v3-suite/scripts/check-install.sh
+# 检查 Python/依赖/套件资产/将选中的传输层/搜索 key/前端构建
+```
+
+修改能力文档后需要重新同步:`python critical-debater-v3-suite/scripts/build-suite.py`
+(能力文档单一来源仍是 `critical-debater-suite/capabilities/`,脚本负责复制)。
 
 ---
 

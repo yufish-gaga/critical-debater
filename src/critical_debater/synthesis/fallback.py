@@ -18,13 +18,22 @@ _RENDERER_NAME = "render-debate-report-from-json.py"
 
 
 def _renderer_path() -> Path:
-    """Locate the v2 renderer script relative to this repo checkout."""
-    here = Path(__file__).resolve()
-    for ancestor in here.parents:
-        candidate = ancestor / "critical-debater-suite" / "scripts" / _RENDERER_NAME
+    """Locate the v2 renderer script (skill-suite scripts dir, then repo layout)."""
+    script_name = _RENDERER_NAME
+    try:
+        from ..paths import find_suite_dir
+
+        candidate = find_suite_dir() / "scripts" / script_name
         if candidate.exists():
             return candidate
-    return here.parents[3] / "critical-debater-suite" / "scripts" / _RENDERER_NAME
+    except FileNotFoundError:
+        pass
+    here = Path(__file__).resolve()
+    for ancestor in here.parents:
+        candidate = ancestor / "critical-debater-suite" / "scripts" / script_name
+        if candidate.exists():
+            return candidate
+    return here.parents[3] / "critical-debater-suite" / "scripts" / script_name
 
 
 def debate_report_path(workspace: str) -> str:

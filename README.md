@@ -10,6 +10,7 @@
 | 2026-08-30 | Claude | v3 Phase 5: 质量评估体系（8 维评估/双语质量报告/SVG 仪表盘）/ v3 Phase 5: 8-dimension quality assessment + dashboard |
 | 2026-08-30 | Claude | v3 Phase 6-7: Web UI（React/MUI/RTK + FastAPI/WS）与集成测试 / v3 Phase 6-7: web UI + integration tests |
 | 2026-08-30 | Claude | v3.1: API 安全边界（Token 鉴权/工作空间围栏/取消）与断点恢复（--resume）/ v3.1: API security boundary + checkpoint resume |
+| 2026-08-30 | Claude | 封装 v3 技能库（critical-debater-v3-suite，三平台适配）/ v3 skill suite packaged for installation |
 | 2026-08-30 | Claude | v3 Phase 1: LangGraph 核心架构迁移（`src/critical_debater/`），v2 套件保持不变 / v3 Phase 1: LangGraph core migration (`src/critical_debater/`), v2 suite untouched |
 | 2026-03-12 | Claude | 初始创建 / Initial creation |
 
@@ -151,6 +152,19 @@ Deviations from the plan, with rationale / 与计划的偏差及理由: frontend
 - **Workspace confinement / 工作空间围栏**: user-supplied workspaces must resolve inside `DebateService(workspace_root=…)` (defaults to `runs_root`); anything else — including `..` traversal — is rejected with 403.
 - **Cancel / 取消**: `POST /api/debates/{id}/cancel` cooperatively cancels at the next agent-step boundary via a `CancellableRunner` wrapper (threads can't be killed); config status becomes `cancelled` and the WS stream terminates.
 - **Resume / 断点恢复**: interrupted workspaces continue from their `config.json` checkpoint — `python -m critical_debater <ws> <topic> [rounds] --resume` or `"resume": true` on `POST /api/debates`. Completed rounds and the initial evidence phase are never redone (see [docs/deployment-guide.md](docs/deployment-guide.md) for the status → entry mapping).
+
+---
+
+## v3 Skill Suite / v3 技能库
+
+The refactored system ships as an installable agent skill: `critical-debater-v3-suite/` — same Core+Adapters pattern as the v2 suite (generated SKILL.md, adapters for Claude Code / Codex / OpenClaw, bundled capability docs and data contracts, an install checker). See [critical-debater-v3-suite/SKILL.md](critical-debater-v3-suite/SKILL.md) and [examples/quickstart.md](critical-debater-v3-suite/examples/quickstart.md).
+
+```bash
+# Install as an agent skill: copy the suite (or the repo) into your skill root, then
+pip install -e . && bash critical-debater-v3-suite/scripts/check-install.sh
+# Regenerate after editing core/capabilities:
+python critical-debater-v3-suite/scripts/build-suite.py --check
+```
 
 ---
 
