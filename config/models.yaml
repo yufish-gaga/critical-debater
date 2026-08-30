@@ -1,0 +1,14 @@
+# Model tier configuration (v3 Phase 1)
+# Generic tier -> runtime-specific model name. Phase 2 will extend this file
+# with provider-level settings (api providers, local models, dynamic switch).
+# 模型层级配置:通用层级 → 各运行时具体模型名;Phase 2 将扩展 provider 级配置。
+
+tiers:
+  claude:
+    fast: sonnet
+    balanced: sonnet
+    deep: opus
+  codex:
+    fast: gpt-5.2-codex
+    balanced: gpt-5.3-codex
+    deep: gpt-5.3-codex

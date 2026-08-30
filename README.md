@@ -1,11 +1,45 @@
 # Critical Debater v2
 
+## Changelog / 变更日志
+
+| 时间 / Time | 作者 / Author | 变更 / Change |
+|---|---|---|
+| 2026-08-30 | Claude | v3 Phase 1: LangGraph 核心架构迁移（`src/critical_debater/`），v2 套件保持不变 / v3 Phase 1: LangGraph core migration (`src/critical_debater/`), v2 suite untouched |
+| 2026-03-12 | Claude | 初始创建 / Initial creation |
+
 **Multi-agent adversarial debate system with real-time evidence verification.**
 **多 Agent 对抗式辩论系统，实时证据验证。**
 
 A structured 4-agent debate framework: Pro and Con argue in parallel, a neutral Judge independently verifies every claim, and an Orchestrator manages the lifecycle. Every argument requires a 5-element reasoning chain; every conclusion is profiled across 10 dimensions. Output is a bilingual (English + Chinese) Markdown report backed by verified evidence.
 
 一个结构化的 4-Agent 辩论框架：正方和反方并行辩论，中立法官独立验证每个论点，编排器管理全流程。每个论点需要 5 要素推理链；每个结论经 10 维度画像。输出为双语（英文+中文）Markdown 报告，由经验证的证据支撑。
+
+---
+
+## v3 — LangGraph Migration (Phase 1) / v3 — LangGraph 迁移（Phase 1）
+
+The orchestration core has been migrated to LangGraph per
+[docs/refactoring-plan-langgraph.md](docs/refactoring-plan-langgraph.md).
+编排核心已按重构方案迁移到 LangGraph。
+
+- **Graph orchestration / 图编排**: 17 nodes cover the full lifecycle — init → evidence gate (retry loop) → per-round refresh → parallel Pro/Con → judge audit → claim consistency → final synthesis → report gate → quality baseline. Conditional edges drive the round loop; the Pro/Con fan-out runs both sides concurrently.
+- **Behavior preserved / 行为不变**: identical capability prompts, model tiers, step ids, retry counts, audit events, workspace layout, and failure statuses (`failed_*`) as v2. Both orchestrators operate on the same workspaces.
+- **Agent runner abstraction / 执行层抽象**: `AgentRunner` protocol isolates the graph from the transport (Phase 1: `claude -p` / `codex exec` CLI; Phase 2 will add API-backed providers via `config/models.yaml`).
+- **No bash/jq dependency / 无 bash/jq 依赖**: schema validation, audit append (with dedupe), and workspace init are pure Python ports of the v2 scripts.
+
+```bash
+# Run the v3 graph orchestrator / 运行 v3 图编排器
+pip install -e .            # or: PYTHONPATH=src
+python -m critical_debater <workspace_dir> <config_or_topic> [rounds]
+
+# Run the test suite / 运行测试
+pip install -e ".[dev]" && pytest
+```
+
+Source lives in `src/critical_debater/` (`graph/` state graph, `models/` runner
+abstraction, `agents/` capability prompts, `evidence/`, `claims/`,
+`synthesis/`, `quality/`). The v2 skill suite in `critical-debater-suite/`
+remains unchanged and compatible.
 
 ---
 
