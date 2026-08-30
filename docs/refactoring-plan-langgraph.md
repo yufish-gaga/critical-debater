@@ -4,6 +4,7 @@
 
 | 时间 / Time | 作者 / Author | 变更 / Change |
 |---|---|---|
+| 2026-08-30 | Claude | Phase 5 完成质量评估体系：`DebateQualityAssessor` 8 维确定性评分（等权可配 `config/quality_rules.yaml`），双语 `quality_report.md` + 自包含 SVG 仪表盘 `quality_dashboard.html`（零依赖零外部资源）/ Phase 5 quality assessment done |
 | 2026-08-30 | Claude | Phase 4 完成证据可信度优化：`EvidenceCredibilityScorer` 五维加权评分（权威30%/时效15%/交叉验证25%/内容20%/透明10%），`config/credibility_rules.yaml` 规则外置，语境动态权重调整（红队/社媒占比/过期占比/后期轮次），证据关系图谱（复本/同域/共引/矛盾边），post_round 落盘 + final_synthesis 注入 / Phase 4 evidence credibility done |
 | 2026-08-30 | Claude | Phase 3 完成中文信源适配：`config/chinese_sources.yaml` 域名分级注册表（gov.cn/新华社/人民网→tier1），`ChineseQueryOptimizer` 权威站点限定搜索，Bocha 中文搜索后端，证据 `source_language` 标注与可信度确定性覆盖 / Phase 3 Chinese source adaptation done |
 | 2026-08-30 | Claude | Phase 2 完成多模型接入：`OpenAICompatProvider` 一类覆盖 DeepSeek/Kimi/GLM/Qwen/OpenAI/Ollama，`AnthropicProvider`，`LLMAgentRunner` 进程内执行能力步骤，Tavily 可插拔搜索，`config/models.yaml` 角色路由 / Phase 2 multi-model access done |
@@ -16,7 +17,7 @@
 |---|---|
 | **版本** | v3.0.0-plan |
 | **创建日期** | 2026-08-30 |
-| **状态** | Phase 1-4 已完成（架构迁移 + 多模型 + 中文信源 + 证据可信度）；Phase 5+ 规划中 |
+| **状态** | Phase 1-5 已完成（架构迁移 + 多模型 + 中文信源 + 证据可信度 + 质量评估）；Phase 6+ 规划中 |
 | **目标框架** | LangGraph |
 
 ---
@@ -394,6 +395,13 @@ critical-debater-v3/
 - 8 维度质量评估
 - 质量报告生成
 - 可视化图表
+
+### Phase 5: 质量评估体系 (Week 9-10) ✅ 已完成 / DONE
+- 8 维度质量评估 → `quality/assessor.py` `DebateQualityAssessor`：证据质量（Phase 4 可信度均分 + tier 结构）、推理深度（推理链五要素完整率 + 每轮论点量对 depth 门槛 + 情景/历史引用）、论点多样性（claim_type 覆盖 / 引用域名广度 / 双方引用重叠度）、反驳有效性（针对性反驳占比 + **上轮必答点 MRP 履行率**）、裁判严谨性（论点裁定覆盖率 + 裁定附理由率 + 因果标记轮次占比）、交叉验证率（verified 论点 + corroborated 证据）、辩论平衡性（正反论点数与发现证据对称度）、结论可靠性（verified facts 锚定 + 结论画像可证伪/有效窗口完整率 + 争议点状态标注）；全部确定性 0-1 分 + 子分 + 双语注记
+- 质量报告生成 → `quality/report.py`：`reports/quality_report.md`（综合得分档位判定 优秀/良好/中等/薄弱 + 八维表 + 各维度要点 + 基础统计，全双语）；`reports/quality_metrics.json` 为机器可读完整报告
+- 可视化图表 → `quality/charts.py`：**零依赖自包含 HTML 仪表盘** `reports/quality_dashboard.html` —— 8 维雷达图（内联 SVG，含 0.25/0.5/0.75/1.0 参考环与顶点标注）+ 可信度分级/论点状态分布条形图，无外部 JS/CSS 资源
+- 权重外置 → `config/quality_rules.yaml`（`dimension_weights`，默认等权 0.125，自动归一化）
+- 测试：115 个 pytest 用例（新增八维结构/推理链退化/平衡性/MRP 履行/可信度联动/结论画像/权重覆盖/工件渲染）
 
 ### Phase 6: 交互式前端 (Week 11-14)
 - React 项目初始化

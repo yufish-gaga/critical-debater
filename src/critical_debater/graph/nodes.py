@@ -523,7 +523,11 @@ def make_nodes(runner: AgentRunner) -> dict:
         return {"status": "complete"}
 
     def quality_assessment(state: DebateState) -> dict:
-        metrics = assess_debate_quality(state["workspace_path"], state["topic"], state["rounds"])
+        metrics = assess_debate_quality(
+            state["workspace_path"], state["topic"], state["rounds"],
+            mode=state["mode"], depth=state["depth"],
+        )
+        print(f"[{timestamp()}] quality assessment: overall={metrics.get('overall_score')}")
         return {"quality_metrics": metrics}
 
     return {
