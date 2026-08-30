@@ -1,532 +1,95 @@
-# Critical Debater v2
+# Critical Debater
 
-## Changelog / 变更日志
+**多 Agent 对抗式辩论系统 / Multi-agent adversarial debate system**
 
-| 时间 / Time | 作者 / Author | 变更 / Change |
-|---|---|---|
-| 2026-08-30 | Claude | v3 Phase 2: 多模型接入（DeepSeek/Kimi/GLM/Qwen/OpenAI/Anthropic/Ollama，API key 走环境变量，可插拔搜索，角色路由）/ v3 Phase 2: multi-model provider layer |
-| 2026-08-30 | Claude | v3 Phase 3: 中文信源适配（域名分级注册表/权威站点限定搜索/Bocha 中文搜索/证据语言标注）/ v3 Phase 3: Chinese source adaptation |
-| 2026-08-30 | Claude | v3 Phase 4: 证据可信度优化（五维加权评分/动态权重/证据关系图谱）/ v3 Phase 4: evidence credibility scoring + graph |
-| 2026-08-30 | Claude | v3 Phase 5: 质量评估体系（8 维评估/双语质量报告/SVG 仪表盘）/ v3 Phase 5: 8-dimension quality assessment + dashboard |
-| 2026-08-30 | Claude | v3 Phase 6-7: Web UI（React/MUI/RTK + FastAPI/WS）与集成测试 / v3 Phase 6-7: web UI + integration tests |
-| 2026-08-30 | Claude | v3.1: API 安全边界（Token 鉴权/工作空间围栏/取消）与断点恢复（--resume）/ v3.1: API security boundary + checkpoint resume |
-| 2026-08-30 | Claude | 封装 v3 技能库（critical-debater-v3-suite，三平台适配）/ v3 skill suite packaged for installation |
-| 2026-08-30 | Claude | v3 Phase 1: LangGraph 核心架构迁移（`src/critical_debater/`），v2 套件保持不变 / v3 Phase 1: LangGraph core migration (`src/critical_debater/`), v2 suite untouched |
-| 2026-03-12 | Claude | 初始创建 / Initial creation |
+给定一个辩题,正方与反方并行多轮辩论,中立法官对每条论点独立验证,LangGraph 状态图编排全流程。每条论点要求五要素推理链,每条证据经过确定性可信度评分,最终输出双语报告与八维质量评估。
 
-**Multi-agent adversarial debate system with real-time evidence verification.**
-**多 Agent 对抗式辩论系统，实时证据验证。**
+## 特性
 
-A structured 4-agent debate framework: Pro and Con argue in parallel, a neutral Judge independently verifies every claim, and an Orchestrator manages the lifecycle. Every argument requires a 5-element reasoning chain; every conclusion is profiled across 10 dimensions. Output is a bilingual (English + Chinese) Markdown report backed by verified evidence.
+- **LangGraph 编排**:17 节点状态图,条件边驱动证据门重试环与轮次循环,正反方并行辩论
+- **多模型接入**:一个兼容层通吃 DeepSeek / Kimi / GLM / Qwen / OpenAI / Anthropic / 本地 Ollama;裁判与辩手可用不同厂商;API key 只走环境变量
+- **中文信源适配**:中文辩题自动切换中文查询与权威站点限定搜索(gov.cn / 新华社 / 人民网),域名分级注册表确定性校正可信度
+- **证据可信度评分**:权威性 30% / 交叉验证 25% / 内容质量 20% / 时效性 15% / 透明度 10%,红队模式等语境动态调权;证据关系图谱
+- **八维质量评估**:证据质量、推理深度、多样性、反驳有效性、裁判严谨性、交叉验证率、平衡性、结论可靠性,产出双语报告与可视化仪表盘
+- **Web 界面**:React + MUI,实时进度(WebSocket)、证据浏览、轮次视图、质量雷达、报告展示
+- **安全与恢复**:API Token 鉴权、工作空间路径围栏、辩论取消、基于检查点的断点续跑
 
-一个结构化的 4-Agent 辩论框架：正方和反方并行辩论，中立法官独立验证每个论点，编排器管理全流程。每个论点需要 5 要素推理链；每个结论经 10 维度画像。输出为双语（英文+中文）Markdown 报告，由经验证的证据支撑。
-
----
-
-## v3 — LangGraph Migration (Phase 1) / v3 — LangGraph 迁移（Phase 1）
-
-The orchestration core has been migrated to LangGraph per
-[docs/refactoring-plan-langgraph.md](docs/refactoring-plan-langgraph.md).
-编排核心已按重构方案迁移到 LangGraph。
-
-- **Graph orchestration / 图编排**: 17 nodes cover the full lifecycle — init → evidence gate (retry loop) → per-round refresh → parallel Pro/Con → judge audit → claim consistency → final synthesis → report gate → quality baseline. Conditional edges drive the round loop; the Pro/Con fan-out runs both sides concurrently.
-- **Behavior preserved / 行为不变**: identical capability prompts, model tiers, step ids, retry counts, audit events, workspace layout, and failure statuses (`failed_*`) as v2. Both orchestrators operate on the same workspaces.
-- **Agent runner abstraction / 执行层抽象**: `AgentRunner` protocol isolates the graph from the transport (Phase 1: `claude -p` / `codex exec` CLI; Phase 2 adds API-backed providers via `config/models.yaml`).
-- **No bash/jq dependency / 无 bash/jq 依赖**: schema validation, audit append (with dedupe), and workspace init are pure Python ports of the v2 scripts.
+## 快速开始
 
 ```bash
-# Run the v3 graph orchestrator / 运行 v3 图编排器
-pip install -e .            # or: PYTHONPATH=src
-python -m critical_debater <workspace_dir> <config_or_topic> [rounds]
-
-# Run the test suite / 运行测试
-pip install -e ".[dev]" && pytest
-```
-
-Source lives in `src/critical_debater/` (`graph/` state graph, `models/` runner
-abstraction, `agents/` capability prompts, `evidence/`, `claims/`,
-`synthesis/`, `quality/`). The v2 skill suite in `critical-debater-suite/`
-remains unchanged and compatible.
-
----
-
-## v3 Phase 2 — Multi-Model Providers / v3 Phase 2 — 多模型接入
-
-Any vendor can now drive the debate — not just the Claude/Codex CLIs.
-现在任何厂商的模型都可以驱动辩论，不再局限于 Claude/Codex CLI。
-
-- **One class covers most vendors / 一个类覆盖大多数厂商**: `OpenAICompatProvider` works with **DeepSeek, Moonshot Kimi, Zhipu GLM, Alibaba Qwen, OpenAI**, and local **Ollama / vLLM** endpoints (they all speak the OpenAI Chat Completions protocol). `AnthropicProvider` covers Claude.
-- **API keys via env / 密钥走环境变量**: config stores only the variable *name* (`api_key_env`), never the key itself.
-- **Role routing / 角色路由**: `role_models` maps each debate role (ingest / pro / con / judge / synthesis) to any provider — e.g. DeepSeek debaters with an Anthropic judge.
-- **In-process execution / 进程内执行**: `LLMAgentRunner` injects capability instructions + workspace context (evidence store, claim ledger, round artifacts), enforces a JSON output contract, and writes artifacts; `final_synthesis` = LLM `final_report.json` + deterministic bilingual renderer for `debate_report.md`.
-- **Pluggable search / 可插拔搜索**: source-ingest uses a `SearchProvider` (Tavily included; add Baidu/Bocha in Phase 3 behind the same protocol). No search configured → the evidence gate fails honestly instead of letting the model fabricate sources.
-
-```bash
-# DeepSeek drives the whole debate / DeepSeek 驱动整场辩论
-export DEEPSEEK_API_KEY=sk-...
-export TAVILY_API_KEY=tvly-...        # optional web search / 可选联网搜索
-python -m critical_debater <workspace_dir> <topic> [rounds]
-
-# Transport selection / 传输选择
-#   auto (default): api when a provider key is present, else claude/codex CLI
-#   force: CRITICAL_DEBATER_RUNTIME=api|cli
-```
-
-Providers, per-role model mapping, and the search backend are configured in
-[`config/models.yaml`](config/models.yaml).
-
----
-
-## v3 Phase 3 — Chinese Source Adaptation / v3 Phase 3 — 中文信源适配
-
-Chinese topics no longer depend on English-language evidence.
-中文辩题不再依赖英文论据。
-
-- **Automatic activation / 自动启用**: any Chinese topic (or `language: zh`) switches source-ingest into Chinese mode — query guidance asks for 简体中文 multi-angle queries plus one English cross-check query; English topics behave exactly as before.
-- **Authoritative coverage / 权威信源保障**: besides LLM-generated semantic queries, the optimizer deterministically adds site-scoped searches against 权威站点 — `gov.cn`, 新华社 `xinhuanet.com`, 人民网 `people.com.cn` (Tavily native `include_domains`; Bocha via `site:` operators).
-- **Chinese search backend / 中文搜索后端**: `BochaSearchProvider` (博查 API, `BOCHA_API_KEY`) — set `search.provider: bocha` for a China-based index with strong Chinese web coverage.
-- **Deterministic credibility tiers / 确定性可信度分级**: `config/chinese_sources.yaml` maps known domains — 中国政府网/新华社/人民网/央视 → `tier1_authoritative`, 财新/澎湃/一财 → `tier2_reputable`, 知乎/微信公众号/百家号 → `tier3_general`, 微博/贴吧 → `tier4_social`. The mapping **overrides the LLM's tier guess** for known domains, and every evidence item is labelled `source_language: zh|en`.
-
-```yaml
-# config/models.yaml
-search:
-  provider: bocha          # tavily | bocha | none
-  api_key_env: BOCHA_API_KEY
-chinese_sources:
-  config: config/chinese_sources.yaml
-  max_site_scoped: 2
-```
-
----
-
-## v3 Phase 4 — Evidence Credibility Optimization / v3 Phase 4 — 证据可信度优化
-
-Every evidence item now carries a deterministic 0-1 credibility score.
-每条证据现在都带确定性可信度分数。
-
-- **Five-dimension weighted score / 五维加权评分**: 来源权威性 30% · 交叉验证 25% · 内容质量 20% · 时效性 15% · 透明度 10% (`EvidenceCredibilityScorer`, rules in [`config/credibility_rules.yaml`](config/credibility_rules.yaml)). Cross-validation combines the corroboration status with judge claim verdicts (verified +, contested −) and same-domain duplicate dilution. Reasoning-track/timeless evidence **never** decays with age (contract rule).
-- **Dynamic weights / 动态权重**: red-team mode boosts cross-validation scrutiny; social-heavy or stale-heavy stores raise the matching dimension; late rounds tighten judge scrutiny. Adjusted weights are renormalized to 1.0 and recorded with the scores.
-- **Evidence relationship graph / 证据关系图谱**: `evidence/evidence_graph.json` links duplicates, same-domain clusters, co-cited evidence, claim→evidence support edges, and judge-flagged contradictions.
-- **Consumed downstream / 下游消费**: scores land in `state.evidence_weights` each round; the final-synthesis prompt injects `credibility_score` per item and forbids anchoring conclusions on low-credibility social/uncorroborated items; the quality baseline reports the credibility average.
-
----
-
-## v3 Phase 5 — Quality Assessment / v3 Phase 5 — 质量评估体系
-
-Every debate now ends with a deterministic eight-dimension quality report.
-每场辩论现在都会生成确定性的八维质量报告。
-
-- **Eight dimensions / 八维评估** (`DebateQualityAssessor`): 证据质量 evidence quality (Phase-4 credibility) · 推理深度 reasoning depth (5-element chain completeness) · 论点多样性 argument diversity (types / cited domains / pro-con overlap) · 反驳有效性 rebuttal effectiveness (targeted rebuttals + judge MRP fulfilment) · 裁判严谨性 judge rigor (verification coverage) · 交叉验证率 cross-validation rate · 辩论平衡性 debate balance · 结论可靠性 conclusion reliability (profile falsifiability). Each is a 0-1 score with subscores and bilingual notes; dimension weights live in [`config/quality_rules.yaml`](config/quality_rules.yaml).
-- **Quality report / 质量报告**: `reports/quality_report.md` — bilingual, with an overall band verdict (优秀/良好/中等/薄弱) and per-dimension notes; `reports/quality_metrics.json` is the machine-readable full report.
-- **Visualization / 可视化**: `reports/quality_dashboard.html` — a self-contained dashboard (8-axis radar + tier/status bars) built from inline SVG with zero external assets or chart libraries.
-
----
-
-## v3 Phase 6-7 — Web UI & Integration / v3 Phase 6-7 — Web 界面与集成
-
-- **Backend API** (`src/critical_debater/api/`): FastAPI — `POST /api/debates` runs the LangGraph debate in a background thread; `GET /api/debates/{id}` tracks status/current round; `/artifacts/{name}` serves the evidence store, claim ledger, quality metrics, round turns (`round_1_pro_turn`, …) and the final report; **`WS /ws/{id}`** streams a snapshot plus live audit-trail/status events (mtime-guarded polling, async, auto-terminates on final status).
-- **Frontend** (`frontend/`): React 18 + TypeScript (Vite) + Material-UI + Redux Toolkit + Recharts — six modules: topic configuration, live progress (stage stepper + audit event feed), evidence browser (tier filter / credibility score / language label), rounds view (arguments, rebuttals, judge rulings), quality radar dashboard, final report viewer.
-- **Serving**: the built SPA (`npm run build` → `frontend/dist`) is mounted by FastAPI with client-route fallback — one process serves everything.
-
-```bash
-# Build the frontend once / 构建前端
-cd frontend && npm install && npm run build && cd ..
-
-# Serve API + UI together / 单进程同时提供 API 与界面
-PYTHONPATH=src uvicorn critical_debater.api.app:create_app --factory --port 8000
-# or / 或者
-PYTHONPATH=src python -m critical_debater.api [workspace]
-# open http://127.0.0.1:8000
-
-# Integration tests / 集成测试
-pytest tests/test_api_integration.py -v
-```
-
-Deviations from the plan, with rationale / 与计划的偏差及理由: frontend lives at `frontend/` (not `src/frontend/`) to keep the Python package clean; native WebSocket instead of Socket.IO (zero extra deps on both ends, same protocol semantics); Recharts only (D3-based, covers the dashboard needs).
-
----
-
-## v3.1 — Security Boundary & Checkpoint Resume / v3.1 — 安全边界与断点恢复
-
-- **Auth / 鉴权**: set `CRITICAL_DEBATER_API_TOKEN` (or `create_app(api_token=...)`) to require a token on every `/api/*` request (`Authorization: Bearer …` / `X-Api-Token`) and every WS connection (`?token=`). The UI has a token field in the Setup tab (stored in localStorage). Unset → auth off, as before.
-- **Workspace confinement / 工作空间围栏**: user-supplied workspaces must resolve inside `DebateService(workspace_root=…)` (defaults to `runs_root`); anything else — including `..` traversal — is rejected with 403.
-- **Cancel / 取消**: `POST /api/debates/{id}/cancel` cooperatively cancels at the next agent-step boundary via a `CancellableRunner` wrapper (threads can't be killed); config status becomes `cancelled` and the WS stream terminates.
-- **Resume / 断点恢复**: interrupted workspaces continue from their `config.json` checkpoint — `python -m critical_debater <ws> <topic> [rounds] --resume` or `"resume": true` on `POST /api/debates`. Completed rounds and the initial evidence phase are never redone (see [docs/deployment-guide.md](docs/deployment-guide.md) for the status → entry mapping).
-
----
-
-## v3 Skill Suite / v3 技能库
-
-The refactored system ships as an installable agent skill: `critical-debater-v3-suite/` — same Core+Adapters pattern as the v2 suite (generated SKILL.md, adapters for Claude Code / Codex / OpenClaw, bundled capability docs and data contracts, an install checker). See [critical-debater-v3-suite/SKILL.md](critical-debater-v3-suite/SKILL.md) and [examples/quickstart.md](critical-debater-v3-suite/examples/quickstart.md).
-
-```bash
-# Install as an agent skill: copy the suite (or the repo) into your skill root, then
-pip install -e . && bash critical-debater-v3-suite/scripts/check-install.sh
-# Regenerate after editing core/capabilities:
-python critical-debater-v3-suite/scripts/build-suite.py --check
-```
-
----
-
-## Features / 特性
-
-| Feature / 特性 | Description / 描述 |
-|---|---|
-| **4-Agent Architecture** | Pro, Con, Judge (independent verification), Orchestrator |
-| **4-Agent 架构** | 正方、反方、法官（独立验证）、编排器 |
-| **Parallel Pro/Con** | Both sides argue independently — no information asymmetry |
-| **并行正反方** | 双方独立论述——无信息不对称 |
-| **Per-Round Evidence Refresh** | Each round searches for new evidence driven by judge feedback |
-| **每轮证据刷新** | 每轮根据法官反馈搜索新证据 |
-| **5-Element Reasoning Chains** | observed_facts → mechanism → scenario_implication → trigger_conditions → falsification_conditions |
-| **5 要素推理链** | 观察事实 → 机制 → 情景推演 → 触发条件 → 可证伪条件 |
-| **10-Dimension Conclusion Profiles** | Probability, confidence, consensus, evidence coverage, reversibility, validity window, impact, causal clarity, actionability, falsifiability |
-| **10 维度结论画像** | 概率、置信度、共识度、证据覆盖、可逆性、有效窗口、影响量级、因果清晰度、可操作性、可证伪性 |
-| **Bilingual Reports** | Full English + Chinese Markdown reports |
-| **双语报告** | 完整的英文 + 中文 Markdown 报告 |
-| **Agent Skills Compatible** | Works with Claude Code, skills.sh, and other Agent Skills runtimes |
-| **Agent Skills 兼容** | 兼容 Claude Code、skills.sh 及其他 Agent Skills 运行时 |
-
----
-
-## Complete System Flow / 完整系统流程
-
-```
-PHASE 1: INITIALIZATION / 初始化阶段
-══════════════════════════════════════════════════
-  User provides: topic, rounds (default 3), options
-  用户输入: 辩题、轮次（默认 3）、选项
-         │
-         ▼
-  init-workspace.sh → creates directory structure + empty JSONs
-  init-workspace.sh → 创建目录结构 + 空 JSON 文件
-         │
-         ▼
-  SourceIngest(broad, round=0) — 3~8 diverse search queries
-  源采集（广泛搜索，round=0）— 3~8 个多样化搜索查询
-         │
-         ▼
-  FreshnessCheck — classify fact vs reasoning track
-  新鲜度检查 — 分类事实轨道 vs 推理轨道
-         │
-         ▼
-  config.json: status = "evidence_gathered"
-
-
-PHASE 2: DEBATE ROUNDS (for each round N = 1..R) / 辩论轮次
-══════════════════════════════════════════════════
-
-  Step 2a: PER-ROUND EVIDENCE REFRESH / 每轮证据刷新
-  ─────────────────────────────────────────────
-  Read judge_ruling from round N-1:
-    → mandatory_response_points → search gaps
-    → causal_validity_flags → weak evidence areas
-  读取上轮法官裁定 → 生成聚焦搜索查询 → 采集新证据
-
-  Step 2b: PARALLEL PRO + CON / 并行正反方
-  ─────────────────────────────────────
-  ┌─────────────────────────┐  ┌─────────────────────────┐
-  │      PRO-DEBATER        │  │      CON-DEBATER        │
-  │      正方辩手            │  │      反方辩手            │
-  │                         │  │                         │
-  │ Read: evidence_store    │  │ Read: evidence_store    │
-  │ Read: claim_ledger      │  │ Read: claim_ledger      │
-  │ [N>1] Read: round N-1/* │  │ [N>1] Read: round N-1/* │
-  │                         │  │                         │
-  │ Build arguments         │  │ Build arguments         │
-  │ Search new evidence     │  │ Search new evidence     │
-  │ Write: pro_turn.json    │  │ Write: con_turn.json    │
-  └─────────────────────────┘  └─────────────────────────┘
-              │                            │
-              └───────────┬────────────────┘
-                          ▼
-  Step 2c: VALIDATE OUTPUTS / 验证输出
-  ─────────────────────────
-  validate-json.sh pro_turn.json + con_turn.json
-  Deep check: 5-element reasoning chain per argument
-
-  Step 2d: JUDGE AUDIT / 法官审计
-  ────────────────────
-  Judge independently verifies claims via search
-  法官通过独立搜索验证论点
-  Writes: judge_ruling.json (verification_results, mandatory_response_points)
-
-  Step 2e: POST-ROUND PROCESSING / 轮后处理
-  ──────────────────────────────
-  Extract claims → update claim_ledger
-  Merge new_evidence from both turns → evidence_store
-  Audit log + config update
-
-
-PHASE 3: FINAL OUTPUT / 最终输出
-══════════════════════════════════════════════════
-  FinalSynthesis:
-    → verified_facts, probable_conclusions, contested_points
-    → scenario_outlook + watchlist_24h
-    → conclusion_profiles (10 dimensions)
-    → decision_matrix
-    → reports/final_report.json + reports/debate_report.md
-```
-
----
-
-## Quick Start / 快速开始
-
-### Via Claude Code / 通过 Claude Code
-
-```
-debate "Should central banks adopt digital currencies?" --rounds 3 --depth standard
-```
-
-### Via Python Orchestrator / 通过 Python 编排器
-
-```bash
-# Initialize workspace / 初始化工作空间
-bash scripts/init-workspace.sh ./debates/cbdc "Should central banks adopt digital currencies?" 3
-
-# Run orchestrator / 运行编排器
-python3 scripts/debate_orchestrator_generic.py ./debates/cbdc "Should central banks adopt digital currencies?" 3
-```
-
-### Red Team Mode / 红队模式
-
-```
-red team this: "Our company should migrate all services to Kubernetes"
-```
-
-In red team mode, Con = Red Team (identifies risks), Pro = Blue Team (proposes mitigations).
-红队模式中，反方 = 红队（识别风险），正方 = 蓝队（提出缓解措施）。
-
----
-
-## Configuration / 配置
-
-The `config.json` in each workspace controls debate behavior:
-
-每个工作空间的 `config.json` 控制辩论行为：
-
-| Field / 字段 | Type / 类型 | Description / 描述 |
-|---|---|---|
-| `topic` | string | The debate topic / 辩题 |
-| `round_count` | int | Number of debate rounds (default: 3) / 辩论轮数 |
-| `depth` | `quick \| standard \| deep` | Controls search breadth and argument rigor / 控制搜索广度和论证严格度 |
-| `mode` | `balanced \| red_team` | Debate mode / 辩论模式 |
-| `evidence_refresh` | `upfront_only \| per_round \| hybrid` | When to search for new evidence / 何时搜索新证据 |
-| `language` | `en \| zh \| bilingual` | Output language / 输出语言 |
-| `domain` | string | Topic domain (geopolitics, tech, health, finance, etc.) / 话题领域 |
-| `speculation_level` | `conservative \| moderate \| exploratory` | How far to extrapolate / 推测程度 |
-| `output_format` | `full_report \| executive_summary \| decision_matrix` | Report format / 报告格式 |
-| `focus_areas` | string[] | User-defined dimensions to focus on / 用户定义的关注维度 |
-
-### Depth Levels / 深度级别
-
-| Depth / 深度 | Search Queries / 搜索查询 | Min Evidence / 最少证据 | Min Args / 最少论点 |
-|---|---|---|---|
-| `quick` | 3 | 5 | 2 |
-| `standard` | 5 | 10 | 2 |
-| `deep` | 8 | 15 | 3 |
-
----
-
-## Outputs / 产出物
-
-### Workspace Structure / 工作空间结构
-
-```
-workspace/
-├── config.json              # Debate configuration / 辩论配置
-├── evidence/
-│   └── evidence_store.json  # All evidence items / 所有证据项
-├── claims/
-│   └── claim_ledger.json    # All claims with status / 所有论点及状态
-├── rounds/
-│   ├── round_1/
-│   │   ├── pro_turn.json    # Pro's arguments / 正方论述
-│   │   ├── con_turn.json    # Con's arguments / 反方论述
-│   │   └── judge_ruling.json # Judge's ruling / 法官裁定
-│   ├── round_2/
-│   │   └── ...
-│   └── round_3/
-│       └── ...
-├── reports/
-│   ├── final_report.json    # Structured JSON report / 结构化 JSON 报告
-│   └── debate_report.md     # Bilingual Markdown report / 双语 Markdown 报告
-└── logs/
-    └── audit_trail.jsonl    # Full audit trail / 完整审计日志
-```
-
-### Final Report Contents / 最终报告内容
-
-The `final_report.json` includes:
-
-| Section / 章节 | Description / 描述 |
-|---|---|
-| `executive_summary` | One-paragraph summary + top facts/points / 执行摘要 |
-| `verified_facts` | Cross-source confirmed factual statements / 交叉验证的事实 |
-| `probable_conclusions` | High-confidence conclusions with qualifiers / 高置信度结论 |
-| `contested_points` | Points where Pro/Con disagree, with judge assessment / 争议焦点 |
-| `decision_matrix` | Factor-by-factor comparison / 因素逐一对比 |
-| `scenario_outlook` | Base case + upside/downside triggers / 基准情景 + 上行/下行触发 |
-| `watchlist_24h` | What to monitor + reversal triggers / 24h 观察清单 |
-| `conclusion_profiles` | 10-dimension profile per conclusion / 每个结论的 10 维画像 |
-| `speculative_frontier` | Forward-looking scenarios / 前瞻性情景推演 |
-| `historical_insights` | Key parallels + conflicting lessons / 历史洞察 |
-
-### The Bilingual Report / 双语报告
-
-`debate_report.md` is a human-readable Markdown document containing:
-
-- Executive Summary (EN/ZH) / 执行摘要
-- Verified Facts table / 已验证事实表
-- Contested Points with pro/con positions / 争议焦点
-- Decision Matrix table / 决策矩阵表
-- Scenario Outlook / 情景展望
-- 24h Watchlist / 24h 观察清单
-- Evidence Inventory / 证据清单
-- Conclusion Profiles (10 dimensions) / 结论画像
-
----
-
-## Evidence System / 证据系统
-
-### Two Evidence Tracks / 双轨证据
-
-| Track / 轨道 | Description / 描述 | Freshness / 新鲜度 |
-|---|---|---|
-| **Fact** | Current-state claims, statistics, recent events / 时效性事实 | Can become `stale` / 可能过期 |
-| **Reasoning** | Mechanisms, trends, historical patterns / 机制、趋势、历史规律 | Always `timeless` / 永不过期 |
-
-### Credibility Tiers / 可信度分级
-
-| Tier / 层级 | Sources / 来源 |
-|---|---|
-| `tier1_authoritative` | Government agencies, central banks, AP, Reuters |
-| `tier2_reputable` | Major newspapers, research institutions, peer-reviewed journals |
-| `tier3_general` | Blogs, industry reports, company press releases |
-| `tier4_social` | Twitter/X, Reddit, forums |
-
-### Claim Status State Machine / 论点状态机
-
-```
-unverified → verified       (judge confirms with evidence)
-unverified → contested      (opposing side challenges)
-verified   → contested      (new counter-evidence found)
-contested  → verified       (resolution through evidence)
-contested  → stale          (evidence expired, not renewed)
-verified   → stale          (supporting evidence expired)
-stale      → verified       (refreshed with current evidence)
-stale      → contested      (refreshed but disputed)
-```
-
----
-
-## Agent Isolation / Agent 隔离
-
-Each agent has strict read/write boundaries to prevent information leakage:
-
-每个 Agent 有严格的读写边界以防止信息泄露：
-
-| Agent | Reads / 可读 | Writes / 可写 |
-|---|---|---|
-| **Orchestrator** | All files / 全部 | All files / 全部 |
-| **Pro-Debater** | evidence_store, claim_ledger, round N-1/* | round_N/pro_turn.json |
-| **Con-Debater** | evidence_store, claim_ledger, round N-1/* | round_N/con_turn.json |
-| **Neutral-Judge** | round_N/pro_turn + con_turn, evidence_store, claim_ledger | round_N/judge_ruling.json |
-
-**Critical rule**: Pro and Con NEVER see each other's current round arguments.
-**关键规则**：正反方永远看不到对方当前轮次的论述。
-
----
-
-## 9 Capabilities / 9 项能力
-
-| Capability / 能力 | File / 文件 | Description / 描述 |
-|---|---|---|
-| Debate Orchestration | `capabilities/debate.md` | Full lifecycle orchestration / 全生命周期编排 |
-| Source Ingest | `capabilities/source-ingest.md` | Broad/focused evidence search / 广泛/聚焦证据搜索 |
-| Freshness Check | `capabilities/freshness-check.md` | Fact vs reasoning track classification / 事实 vs 推理轨道分类 |
-| Evidence Verify | `capabilities/evidence-verify.md` | Optional cross-source verification / 可选交叉验证 |
-| Debate Turn | `capabilities/debate-turn.md` | Argument construction with reasoning chains / 含推理链的论点构建 |
-| Judge Audit | `capabilities/judge-audit.md` | Independent verification + ruling / 独立验证 + 裁定 |
-| Claim Ledger Update | `capabilities/claim-ledger-update.md` | Claim state machine transitions / 论点状态机转换 |
-| Analogy Safeguard | `capabilities/analogy-safeguard.md` | Historical analogy validation / 历史类比验证 |
-| Final Synthesis | `capabilities/final-synthesis.md` | Report generation with 10-dim profiles / 含 10 维画像的报告生成 |
-
----
-
-## Scripts / 脚本
-
-| Script / 脚本 | Usage / 用法 |
-|---|---|
-| `scripts/init-workspace.sh <dir> <topic> <rounds>` | Create workspace structure / 创建工作空间 |
-| `scripts/validate-json.sh <file> <schema_type>` | Validate JSON against data contracts / 验证 JSON 数据合约 |
-| `scripts/hash-snippet.sh <text>` | SHA-256 hash of evidence snippet / 证据摘要哈希 |
-| `scripts/append-audit.sh <audit_file> <json_line>` | Atomic append to audit trail / 原子追加审计日志 |
-| `scripts/debate_orchestrator_generic.py <workspace> <topic> [rounds]` | Python orchestrator / Python 编排器 |
-
----
-
-## Installation / 安装
-
-### Via skills.sh
-
-```bash
-npx skills add xwxga/critical-debater
-```
-
-### Manual / 手动
-
-Clone and use directly with Claude Code:
-
-```bash
-git clone https://github.com/xwxga/critical-debater.git
+git clone https://github.com/yufish-gaga/critical-debater.git
 cd critical-debater
-# The skill is in critical-debater-suite/
+pip install -e .
 ```
 
-### Requirements / 依赖
+配置模型密钥(详见 `config/models.yaml`,支持 DeepSeek / OpenAI / Anthropic / Ollama 等):
 
-- `bash`, `jq`, `python3`, `shasum`
-- Internet access for web search evidence gathering
-- An agent runtime: Claude Code, Codex, or other Agent Skills-compatible runtime
-
----
-
-## Examples / 示例
-
-### Standard Debate / 标准辩论
-
-```
-debate "Will AI replace most white-collar jobs by 2030?" --rounds 3 --depth standard
+```bash
+export DEEPSEEK_API_KEY=sk-...      # 模型
+export TAVILY_API_KEY=tvly-...      # 可选:联网搜索(或 BOCHA_API_KEY)
 ```
 
-### Deep Analysis / 深度分析
+### 命令行辩论
 
-```
-debate "Should the Federal Reserve raise interest rates?" --rounds 5 --depth deep
-```
+```bash
+PYTHONPATH=src python -m critical_debater /tmp/my-debate "中国应如何平衡经济增长与碳排放目标" 3
 
-### Chinese Topic / 中文辩题
-
-```
-辩论 "央行是否应该采用数字货币" --rounds 3 --depth standard
+# 中断后续跑
+PYTHONPATH=src python -m critical_debater /tmp/my-debate "辩题" 3 --resume
 ```
 
-### Multi-Perspective Analysis / 多视角分析
+### Web 界面
 
+```bash
+cd frontend && npm install && npm run build && cd ..
+PYTHONPATH=src uvicorn critical_debater.api.app:create_app --factory --port 8000
+# 打开 http://127.0.0.1:8000
 ```
-analyze from multiple perspectives: should we adopt microservices?
+
+### 纯 API
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/debates \
+  -H "Content-Type: application/json" \
+  -d '{"topic":"Should AGI development be slowed?","rounds":2}'
+# 轮询 /api/debates/{id},实时事件 ws://.../ws/{id},工件 /api/debates/{id}/artifacts/{name}
 ```
 
----
+## 产出物
 
-## Design Spec / 设计规范
+每场辩论生成一个自包含工作空间:
 
-Full system specification (17 sections, 1400+ lines): [docs/critical-debater-v2-spec.md](docs/critical-debater-v2-spec.md)
+| 路径 | 内容 |
+|---|---|
+| `reports/debate_report.md` | 双语最终报告 |
+| `reports/final_report.json` | 结构化报告(验证事实/争议点/情景展望/结论画像) |
+| `reports/quality_report.md` / `quality_dashboard.html` | 八维质量评估与仪表盘 |
+| `evidence/evidence_store.json` | 全部证据(可信度分级/语言/交叉验证状态) |
+| `evidence/evidence_credibility.json` / `evidence_graph.json` | 可信度评分明细与关系图谱 |
+| `claims/claim_ledger.json` | 论点账本(verified / contested / unverified / stale) |
+| `rounds/round_N/` | 每轮正反方论点与裁判裁定 |
+| `logs/audit_trail.jsonl` | 全程审计事件 |
 
-完整系统规范（17 章节，1400+ 行）：[docs/critical-debater-v2-spec.md](docs/critical-debater-v2-spec.md)
+## 技能库
 
----
+系统同时封装为可安装的 Agent 技能:[critical-debater-v3-suite/](critical-debater-v3-suite/SKILL.md)(含 Claude Code / Codex / OpenClaw 适配层、辩论方法论能力文档、安装校验脚本)。
+
+```bash
+bash critical-debater-v3-suite/scripts/check-install.sh   # 安装校验
+```
+
+## 测试
+
+```bash
+pip install -e ".[dev]"
+pytest            # 142 个用例:单元 / 图结构 / 全链路 / API 集成 / 技能库
+```
+
+## 文档
+
+- [部署运行指南](docs/deployment-guide.md) — 配置详解、三种运行方式、生产部署与故障排查
+- [重构方案](docs/refactoring-plan-langgraph.md) — 架构设计与实施记录
+- [原版技能套件](critical-debater-suite/) — 纯 Agent Skills 运行时的实现(兼容保留)
 
 ## License
 
