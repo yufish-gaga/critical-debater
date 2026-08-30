@@ -8,6 +8,7 @@
 | 2026-08-30 | Claude | v3 Phase 3: 中文信源适配（域名分级注册表/权威站点限定搜索/Bocha 中文搜索/证据语言标注）/ v3 Phase 3: Chinese source adaptation |
 | 2026-08-30 | Claude | v3 Phase 4: 证据可信度优化（五维加权评分/动态权重/证据关系图谱）/ v3 Phase 4: evidence credibility scoring + graph |
 | 2026-08-30 | Claude | v3 Phase 5: 质量评估体系（8 维评估/双语质量报告/SVG 仪表盘）/ v3 Phase 5: 8-dimension quality assessment + dashboard |
+| 2026-08-30 | Claude | v3 Phase 6-7: Web UI（React/MUI/RTK + FastAPI/WS）与集成测试 / v3 Phase 6-7: web UI + integration tests |
 | 2026-08-30 | Claude | v3 Phase 1: LangGraph 核心架构迁移（`src/critical_debater/`），v2 套件保持不变 / v3 Phase 1: LangGraph core migration (`src/critical_debater/`), v2 suite untouched |
 | 2026-03-12 | Claude | 初始创建 / Initial creation |
 
@@ -116,6 +117,30 @@ Every debate now ends with a deterministic eight-dimension quality report.
 - **Eight dimensions / 八维评估** (`DebateQualityAssessor`): 证据质量 evidence quality (Phase-4 credibility) · 推理深度 reasoning depth (5-element chain completeness) · 论点多样性 argument diversity (types / cited domains / pro-con overlap) · 反驳有效性 rebuttal effectiveness (targeted rebuttals + judge MRP fulfilment) · 裁判严谨性 judge rigor (verification coverage) · 交叉验证率 cross-validation rate · 辩论平衡性 debate balance · 结论可靠性 conclusion reliability (profile falsifiability). Each is a 0-1 score with subscores and bilingual notes; dimension weights live in [`config/quality_rules.yaml`](config/quality_rules.yaml).
 - **Quality report / 质量报告**: `reports/quality_report.md` — bilingual, with an overall band verdict (优秀/良好/中等/薄弱) and per-dimension notes; `reports/quality_metrics.json` is the machine-readable full report.
 - **Visualization / 可视化**: `reports/quality_dashboard.html` — a self-contained dashboard (8-axis radar + tier/status bars) built from inline SVG with zero external assets or chart libraries.
+
+---
+
+## v3 Phase 6-7 — Web UI & Integration / v3 Phase 6-7 — Web 界面与集成
+
+- **Backend API** (`src/critical_debater/api/`): FastAPI — `POST /api/debates` runs the LangGraph debate in a background thread; `GET /api/debates/{id}` tracks status/current round; `/artifacts/{name}` serves the evidence store, claim ledger, quality metrics, round turns (`round_1_pro_turn`, …) and the final report; **`WS /ws/{id}`** streams a snapshot plus live audit-trail/status events (mtime-guarded polling, async, auto-terminates on final status).
+- **Frontend** (`frontend/`): React 18 + TypeScript (Vite) + Material-UI + Redux Toolkit + Recharts — six modules: topic configuration, live progress (stage stepper + audit event feed), evidence browser (tier filter / credibility score / language label), rounds view (arguments, rebuttals, judge rulings), quality radar dashboard, final report viewer.
+- **Serving**: the built SPA (`npm run build` → `frontend/dist`) is mounted by FastAPI with client-route fallback — one process serves everything.
+
+```bash
+# Build the frontend once / 构建前端
+cd frontend && npm install && npm run build && cd ..
+
+# Serve API + UI together / 单进程同时提供 API 与界面
+PYTHONPATH=src uvicorn critical_debater.api.app:create_app --factory --port 8000
+# or / 或者
+PYTHONPATH=src python -m critical_debater.api [workspace]
+# open http://127.0.0.1:8000
+
+# Integration tests / 集成测试
+pytest tests/test_api_integration.py -v
+```
+
+Deviations from the plan, with rationale / 与计划的偏差及理由: frontend lives at `frontend/` (not `src/frontend/`) to keep the Python package clean; native WebSocket instead of Socket.IO (zero extra deps on both ends, same protocol semantics); Recharts only (D3-based, covers the dashboard needs).
 
 ---
 

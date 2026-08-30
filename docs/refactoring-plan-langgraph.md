@@ -4,6 +4,7 @@
 
 | 时间 / Time | 作者 / Author | 变更 / Change |
 |---|---|---|
+| 2026-08-30 | Claude | Phase 6-7 完成：FastAPI 后端（REST + WebSocket 实时事件流）+ React 18/TS/MUI/Redux Toolkit/Recharts 前端（6 模块，Vite 构建，SPA 由后端挂载），集成测试 119 个 / Phase 6-7 frontend + integration done |
 | 2026-08-30 | Claude | Phase 5 完成质量评估体系：`DebateQualityAssessor` 8 维确定性评分（等权可配 `config/quality_rules.yaml`），双语 `quality_report.md` + 自包含 SVG 仪表盘 `quality_dashboard.html`（零依赖零外部资源）/ Phase 5 quality assessment done |
 | 2026-08-30 | Claude | Phase 4 完成证据可信度优化：`EvidenceCredibilityScorer` 五维加权评分（权威30%/时效15%/交叉验证25%/内容20%/透明10%），`config/credibility_rules.yaml` 规则外置，语境动态权重调整（红队/社媒占比/过期占比/后期轮次），证据关系图谱（复本/同域/共引/矛盾边），post_round 落盘 + final_synthesis 注入 / Phase 4 evidence credibility done |
 | 2026-08-30 | Claude | Phase 3 完成中文信源适配：`config/chinese_sources.yaml` 域名分级注册表（gov.cn/新华社/人民网→tier1），`ChineseQueryOptimizer` 权威站点限定搜索，Bocha 中文搜索后端，证据 `source_language` 标注与可信度确定性覆盖 / Phase 3 Chinese source adaptation done |
@@ -17,7 +18,7 @@
 |---|---|
 | **版本** | v3.0.0-plan |
 | **创建日期** | 2026-08-30 |
-| **状态** | Phase 1-5 已完成（架构迁移 + 多模型 + 中文信源 + 证据可信度 + 质量评估）；Phase 6+ 规划中 |
+| **状态** | Phase 1-7 已完成；Phase 8（生产部署/监控）进行中 |
 | **目标框架** | LangGraph |
 
 ---
@@ -412,6 +413,19 @@ critical-debater-v3/
 - 端到端测试
 - 性能优化
 - 文档完善
+
+### Phase 6: 交互式前端 (Week 11-14) ✅ 已完成 / DONE
+- 后端 API → `src/critical_debater/api/`：FastAPI（计划指定）——`POST /api/debates`（后台线程运行 LangGraph 图）、`GET /api/debates/{id}`（状态+当前轮）、`/artifacts/{name}`（证据库/论点账本/质量报告/轮次工件，含 `round_N_pro_turn` 动态名）、`/report`；**WS `/ws/{id}`**：快照 + mtime 轮询的审计事件流/状态事件流（async，终态自动收尾）
+- React 项目 → `frontend/`（Vite + React 18 + TypeScript 严格模式 + **MUI** + **Redux Toolkit** 状态管理 + **Recharts** 可视化；D3 未单独引入——Recharts 基于 D3 已覆盖需求）
+- 主要界面模块 → 计划 6 模块全部实现：辩题配置面板 / 实时进度监控（Stepper + WS 审计事件流）/ 证据浏览器（分级筛选 + 可信度分 + 语言标注）/ 辩论轮次视图（正反论点 + 驳论 + 裁判裁定）/ 质量仪表盘（Recharts 8 维雷达 + 维度表）/ 最终报告展示
+- WebSocket 集成 → 原生 WebSocket（计划括注 Socket.IO——原生 WS 前后端均零额外依赖，协议可平滑替换）；断线指数退避重连，终态自动收尾
+- 构建产物由 FastAPI 挂载为 SPA（`create_app(frontend_dist=...)`，客户端路由 fallback 到 index.html）；dev 模式 Vite 代理 /api + /ws
+
+### Phase 7: 系统集成和测试 (Week 15-16) ✅ 已完成 / DONE
+- 端到端测试 → `tests/test_api_integration.py`：HTTP 全链路（启动→状态轮询→工件检索→报告读取→404 语义）、WS 事件流（快照→审计事件→终态收尾）、既有工作空间复用、SPA 静态挂载；加上真实 uvicorn + 已构建前端的端口冒烟验证；总计 119 个 pytest 用例
+- 性能优化 → WS feed 采用 mtime 守卫轮询（空闲时零解析开销、无 inotify 依赖）；工件端点按需读取文件
+- 文档完善 → README（Phase 6/7 使用说明）、计划文档（本节）、api/__main__ 入口
+- 说明：浏览器级 E2E（Playwright）未纳入测试套件——需要浏览器运行时，当前以 API 层集成测试 + 构建验证 + 真实端口冒烟覆盖
 
 ### Phase 8: 上线和优化 (Week 17+)
 - 生产环境部署
