@@ -4,6 +4,7 @@
 
 | 时间 / Time | 作者 / Author | 变更 / Change |
 |---|---|---|
+| 2026-08-30 | Claude | 密钥接入重构：`config/secrets.yaml`（gitignored）密钥文件 + models.yaml `api_key` 直填字段，优先级 models.yaml > secrets.yaml > 环境变量，149 测试 / file-based API key input |
 | 2026-08-30 | Claude | 封装 v3 技能库：`critical-debater-v3-suite/`（core 规范 + 生成式 SKILL.md/三平台适配层 + 能力文档复制 + check-install），`paths.py` 支持多套件发现与渲染器回退，142 测试 / v3 skill suite packaged |
 | 2026-08-30 | Claude | v3.1 加固（提前落地 Phase 8 安全项）：API Token 鉴权中间件 + WS `?token=`、工作空间围栏（403）、`POST /cancel` 协作式取消（AgentRunner 接缝步骤间终止）、断点恢复（`--resume`/`resume:true`，config 检查点→resume_router 入口路由），修复 sync_status 终态复活竞态，133 测试 / v3.1 security + resume |
 | 2026-08-30 | Claude | Phase 6-7 完成：FastAPI 后端（REST + WebSocket 实时事件流）+ React 18/TS/MUI/Redux Toolkit/Recharts 前端（6 模块，Vite 构建，SPA 由后端挂载），集成测试 119 个 / Phase 6-7 frontend + integration done |

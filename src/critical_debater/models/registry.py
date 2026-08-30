@@ -28,6 +28,7 @@ environment variable is. When no config exists, sensible built-in presets
 
 from __future__ import annotations
 
+import json
 import os
 from typing import Optional
 
@@ -41,8 +42,10 @@ MODEL_MAP: dict[str, dict[str, str]] = {
 }
 
 CONFIG_ENV_VAR = "CRITICAL_DEBATER_MODELS_CONFIG"
+SECRETS_ENV_VAR = "CRITICAL_DEBATER_SECRETS_CONFIG"
 RUNTIME_ENV_VAR = "CRITICAL_DEBATER_RUNTIME"
 CONFIG_REL_PATH = os.path.join("config", "models.yaml")
+SECRETS_REL_PATH = os.path.join("config", "secrets.yaml")
 
 # Built-in provider presets used when models.yaml has no ``providers`` section.
 # All OpenAI-compatible entries differ only in base_url / key env / models.
@@ -122,9 +125,19 @@ def _config_path() -> Optional[str]:
     return CONFIG_REL_PATH if os.path.exists(CONFIG_REL_PATH) else None
 
 
-def load_debate_config() -> dict:
-    """Load the full models.yaml configuration (empty dict when absent)."""
-    path = _config_path()
+def _secrets_path() -> Optional[str]:
+    path = os.environ.get(SECRETS_ENV_VAR)
+    if path:
+        return path
+    return SECRETS_REL_PATH if os.path.exists(SECRETS_REL_PATH) else None
+
+
+def load_secrets(config_path: Optional[str] = None) -> dict:
+    """Load ``config/secrets.yaml`` — the file where users paste API keys.
+
+    Missing or malformed file → empty dict (env vars remain the fallback).
+    """
+    path = config_path or _secrets_path()
     if not path or not os.path.exists(path):
         return {}
     try:
@@ -135,6 +148,52 @@ def load_debate_config() -> dict:
     except (OSError, yaml.YAMLError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def apply_secrets(config: dict, secrets: Optional[dict] = None) -> dict:
+    """Merge API keys from secrets into an effective config copy.
+
+    Precedence per provider/search backend:
+    models.yaml explicit ``api_key`` > secrets.yaml ``api_key`` > env var
+    (env vars are resolved later by ``build_provider`` / ``build_search_provider``).
+    """
+    merged = json.loads(json.dumps(config))  # deep copy
+    secrets = secrets if secrets is not None else load_secrets()
+
+    for name, secret_spec in (secrets.get("providers") or {}).items():
+        if not isinstance(secret_spec, dict):
+            continue
+        spec = merged.setdefault("providers", {}).setdefault(name, {})
+        if isinstance(spec, dict) and not spec.get("api_key"):
+            spec["api_key"] = str(secret_spec.get("api_key") or "")
+
+    secret_search = secrets.get("search") or {}
+    search_cfg = merged.setdefault("search", {})
+    backend = str(search_cfg.get("provider") or "none").lower()
+    secret_backend = secret_search.get(backend)
+    if isinstance(secret_backend, dict) and not search_cfg.get("api_key"):
+        search_cfg["api_key"] = str(secret_backend.get("api_key") or "")
+    return merged
+
+
+def load_debate_config() -> dict:
+    """Load models.yaml + merged secrets = the effective configuration.
+
+    Empty dict when models.yaml is absent.
+    """
+    path = _config_path()
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        import yaml
+
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except (OSError, yaml.YAMLError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return apply_secrets(data)
 
 
 def load_model_map() -> dict[str, dict[str, str]]:

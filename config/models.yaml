@@ -24,35 +24,41 @@ role_models:
 providers:
   deepseek:
     type: openai_compatible
+    api_key: ""                        # ← 可直接在此填入(sk-...);推荐填到 config/secrets.yaml
     base_url: https://api.deepseek.com/v1
     api_key_env: DEEPSEEK_API_KEY
     models: {fast: deepseek-chat, balanced: deepseek-chat, deep: deepseek-reasoner}
 
   moonshot:                       # Kimi / 月之暗面
     type: openai_compatible
+    api_key: ""                        # ← 可直接在此填入(sk-...);推荐填到 config/secrets.yaml
     base_url: https://api.moonshot.cn/v1
     api_key_env: MOONSHOT_API_KEY
     models: {fast: kimi-k2-0905-preview, balanced: kimi-k2-0905-preview, deep: kimi-k2-0905-preview}
 
   zhipu:                          # 智谱 GLM
     type: openai_compatible
+    api_key: ""                        # ← 可直接在此填入;推荐填到 config/secrets.yaml
     base_url: https://open.bigmodel.cn/api/paas/v4
     api_key_env: ZHIPU_API_KEY
     models: {fast: glm-4.5-air, balanced: glm-4.5, deep: glm-4.5}
 
   openai:
     type: openai_compatible
+    api_key: ""                        # ← 可直接在此填入(sk-...);推荐填到 config/secrets.yaml
     base_url: https://api.openai.com/v1
     api_key_env: OPENAI_API_KEY
     models: {fast: gpt-4o-mini, balanced: gpt-4o, deep: gpt-4o}
 
   anthropic:
     type: anthropic
+    api_key: ""                        # ← 可直接在此填入(sk-ant-...);推荐填到 config/secrets.yaml
     api_key_env: ANTHROPIC_API_KEY
     models: {fast: claude-sonnet-4-5, balanced: claude-sonnet-4-5, deep: claude-opus-4-1}
 
   ollama:                         # local models; no API key needed / 本地模型,无需 key
     type: openai_compatible
+    api_key: ""                        # 留空即可
     base_url: http://localhost:11434/v1
     api_key_env: null
     api_key_required: false
@@ -64,6 +70,7 @@ providers:
 # yields no evidence and the evidence gate will stop the run.
 search:
   provider: tavily                # tavily | bocha | none
+  api_key: ""                     # ← 可直接填写;推荐填到 config/secrets.yaml 的 search 段
   api_key_env: TAVILY_API_KEY
 
 # Chinese source adaptation (v3 Phase 3) / 中文信源适配.

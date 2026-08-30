@@ -22,11 +22,14 @@ cd critical-debater
 pip install -e .
 ```
 
-配置模型密钥(详见 `config/models.yaml`,支持 DeepSeek / OpenAI / Anthropic / Ollama 等):
+配置 API key(在 `config/secrets.yaml` 中直接填写,该文件已被 gitignore;详见 `config/models.yaml`):
 
 ```bash
-export DEEPSEEK_API_KEY=sk-...      # 模型
-export TAVILY_API_KEY=tvly-...      # 可选:联网搜索(或 BOCHA_API_KEY)
+cp config/secrets.example.yaml config/secrets.yaml
+# 编辑 config/secrets.yaml:
+#   providers: { deepseek: { api_key: "sk-..." } }
+#   search:    { tavily:   { api_key: "tvly-..." } }
+# 或用环境变量: export DEEPSEEK_API_KEY=sk-...
 ```
 
 ### 命令行辩论
