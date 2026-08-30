@@ -5,6 +5,7 @@
 | 时间 / Time | 作者 / Author | 变更 / Change |
 |---|---|---|
 | 2026-08-30 | Claude | v3 Phase 2: 多模型接入（DeepSeek/Kimi/GLM/Qwen/OpenAI/Anthropic/Ollama，API key 走环境变量，可插拔搜索，角色路由）/ v3 Phase 2: multi-model provider layer |
+| 2026-08-30 | Claude | v3 Phase 3: 中文信源适配（域名分级注册表/权威站点限定搜索/Bocha 中文搜索/证据语言标注）/ v3 Phase 3: Chinese source adaptation |
 | 2026-08-30 | Claude | v3 Phase 1: LangGraph 核心架构迁移（`src/critical_debater/`），v2 套件保持不变 / v3 Phase 1: LangGraph core migration (`src/critical_debater/`), v2 suite untouched |
 | 2026-03-12 | Claude | 初始创建 / Initial creation |
 
@@ -68,6 +69,28 @@ python -m critical_debater <workspace_dir> <topic> [rounds]
 
 Providers, per-role model mapping, and the search backend are configured in
 [`config/models.yaml`](config/models.yaml).
+
+---
+
+## v3 Phase 3 — Chinese Source Adaptation / v3 Phase 3 — 中文信源适配
+
+Chinese topics no longer depend on English-language evidence.
+中文辩题不再依赖英文论据。
+
+- **Automatic activation / 自动启用**: any Chinese topic (or `language: zh`) switches source-ingest into Chinese mode — query guidance asks for 简体中文 multi-angle queries plus one English cross-check query; English topics behave exactly as before.
+- **Authoritative coverage / 权威信源保障**: besides LLM-generated semantic queries, the optimizer deterministically adds site-scoped searches against 权威站点 — `gov.cn`, 新华社 `xinhuanet.com`, 人民网 `people.com.cn` (Tavily native `include_domains`; Bocha via `site:` operators).
+- **Chinese search backend / 中文搜索后端**: `BochaSearchProvider` (博查 API, `BOCHA_API_KEY`) — set `search.provider: bocha` for a China-based index with strong Chinese web coverage.
+- **Deterministic credibility tiers / 确定性可信度分级**: `config/chinese_sources.yaml` maps known domains — 中国政府网/新华社/人民网/央视 → `tier1_authoritative`, 财新/澎湃/一财 → `tier2_reputable`, 知乎/微信公众号/百家号 → `tier3_general`, 微博/贴吧 → `tier4_social`. The mapping **overrides the LLM's tier guess** for known domains, and every evidence item is labelled `source_language: zh|en`.
+
+```yaml
+# config/models.yaml
+search:
+  provider: bocha          # tavily | bocha | none
+  api_key_env: BOCHA_API_KEY
+chinese_sources:
+  config: config/chinese_sources.yaml
+  max_site_scoped: 2
+```
 
 ---
 

@@ -1,0 +1,60 @@
+# Chinese source registry (v3 Phase 3)
+# 中文信源注册表:域名 → 可信度分级,用于对中文证据做确定性可信度覆盖。
+# 匹配规则:域名等于目标,或以其为后缀(www.gov.cn 匹配 gov.cn;pbc.gov.cn 也匹配)。
+# 分级口径与 docs/refactoring-plan-langgraph.md「中文搜索源配置」一致:
+#   中国政府网 / 新华社 / 人民网 → tier1_authoritative
+#   财新 / 澎湃 等专业媒体 → tier2_reputable
+#   知乎 / 微信公众号 / 百度百家号 等自媒体平台 → tier3_general
+#   微博 / 贴吧 等社交平台 → tier4_social
+
+tier1_authoritative:
+  - gov.cn            # 中国政府网及各部委站点
+  - xinhuanet.com     # 新华社
+  - news.cn           # 新华社
+  - people.com.cn     # 人民网
+  - cctv.com          # 央视
+  - china.com.cn      # 中国网
+  - chinanews.com.cn  # 中新网
+  - pbc.gov.cn        # 中国人民银行
+  - stats.gov.cn      # 国家统计局
+  - ndrc.gov.cn       # 国家发改委
+  - mofcom.gov.cn     # 商务部
+
+tier2_reputable:
+  - caixin.com        # 财新
+  - thepaper.cn       # 澎湃新闻
+  - 21jingji.com      # 21 世纪经济报道
+  - yicai.com         # 第一财经
+  - cs.com.cn         # 中国证券报
+  - stcn.com          # 证券时报
+  - jiemian.com       # 界面新闻
+  - chinanews.com     # 中国新闻网
+  - ifeng.com         # 凤凰网
+  - ce.cn             # 中国经济网
+  - ina.com.cn
+
+tier3_general:
+  - zhihu.com         # 知乎(含 zhuanlan.zhihu.com)
+  - mp.weixin.qq.com  # 微信公众号
+  - baijiahao.baidu.com  # 百度百家号
+  - sohu.com
+  - 163.com
+  - sina.com.cn
+  - qq.com
+  - 36kr.com
+  - jianshu.com
+  - csdn.net
+  - douban.com
+
+tier4_social:
+  - weibo.com         # 微博
+  - weibo.cn
+  - tieba.baidu.com   # 百度贴吧
+  - xiaohongshu.com
+  - douyin.com
+
+# 权威站点(用于站点限定搜索 / site-scoped queries)
+authoritative_sites:
+  - gov.cn
+  - xinhuanet.com
+  - people.com.cn

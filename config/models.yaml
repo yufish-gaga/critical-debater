@@ -59,11 +59,22 @@ providers:
     models: {fast: qwen2.5:7b, balanced: qwen2.5:14b, deep: qwen2.5:32b}
 
 # Web search backend for the source-ingest capability (API providers have no
-# built-in browsing). tavily requires TAVILY_API_KEY; none → ingest honestly
+# built-in browsing). tavily requires TAVILY_API_KEY; bocha (博查, 中文搜索,
+# strong Chinese web coverage) requires BOCHA_API_KEY; none → ingest honestly
 # yields no evidence and the evidence gate will stop the run.
 search:
-  provider: tavily                # tavily | none
+  provider: tavily                # tavily | bocha | none
   api_key_env: TAVILY_API_KEY
+
+# Chinese source adaptation (v3 Phase 3) / 中文信源适配.
+# When the topic is Chinese (or language=zh), ingest adds Chinese query
+# guidance, site-scoped searches against authoritative domains, and applies a
+# deterministic domain → credibility-tier override for known Chinese sources.
+# Registry: config/chinese_sources.yaml (gov.cn/新华社/人民网 → tier1,
+# 专业媒体 → tier2, 知乎/微信公众号 → tier3, 微博/贴吧 → tier4).
+chinese_sources:
+  config: config/chinese_sources.yaml
+  max_site_scoped: 2              # 权威站点限定搜索条数
 
 # Legacy CLI tier mapping (used only when runtime=cli).
 tiers:

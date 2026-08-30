@@ -104,6 +104,7 @@ def make_nodes(runner: AgentRunner) -> dict:
                 "mode": "broad",
                 "round": 0,
                 "num_queries": num_queries,
+                "language": state["language"],
             },
         )
         require_step(workspace, "failed_initialization", "phase1_source_ingest", result)
@@ -164,6 +165,7 @@ def make_nodes(runner: AgentRunner) -> dict:
                 "mode": "broad",
                 "round": 0,
                 "broaden_keywords": True,
+                "language": state["language"],
             },
         )
         require_step(workspace, "failed_initialization", "phase1_source_ingest_retry", result)
@@ -205,6 +207,7 @@ def make_nodes(runner: AgentRunner) -> dict:
                 "mode": "focused",
                 "round": round_num,
                 "search_focus": search_focus,
+                "language": state["language"],
             },
         )
         require_step(workspace, failed_status, "phase2_per_round_ingest", refresh)

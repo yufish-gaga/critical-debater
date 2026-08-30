@@ -40,7 +40,8 @@ def test_tavily_request_and_mapping(monkeypatch):
     assert captured["payload"]["query"] == "debate topic"
     assert captured["payload"]["max_results"] == 2
     assert results[0] == {"title": "T1", "url": "https://a.example/1",
-                          "snippet": "snippet one", "published_date": "2026-08-01"}
+                          "snippet": "snippet one", "published_date": "2026-08-01",
+                          "publisher": None}
     assert results[1]["published_date"] is None
 
 

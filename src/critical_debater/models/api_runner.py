@@ -21,6 +21,11 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from ..evidence.chinese import (
+    ChineseQueryOptimizer,
+    ChineseSourceRegistry,
+    detect_source_language,
+)
 from ..workspace import read_json_or, timestamp, write_json
 from .base import Context, StepResult
 from .provider import ProviderError, extract_json_object
@@ -82,10 +87,11 @@ class LLMAgentRunner:
     """Run capability steps through configured LLM providers."""
 
     def __init__(self, registry: ProviderRegistry, search: Optional[SearchProvider] = None,
-                 runtime_label: str = "api"):
+                 runtime_label: str = "api", chinese: Optional[ChineseQueryOptimizer] = None):
         self.registry = registry
         self.search = search if search is not None else NullSearchProvider()
         self.runtime = runtime_label
+        self.chinese = chinese if chinese is not None else ChineseQueryOptimizer(ChineseSourceRegistry.load())
 
     # ------------------------------------------------------------------
     # construction
@@ -97,7 +103,13 @@ class LLMAgentRunner:
         from .search import build_search_provider
 
         search = build_search_provider(cfg.get("search"))
-        return cls(registry, search, runtime_label=f"api:{registry.default_provider}")
+        chinese_cfg = cfg.get("chinese_sources") or {}
+        zh_registry = ChineseSourceRegistry.load(chinese_cfg.get("config"))
+        optimizer = ChineseQueryOptimizer(
+            zh_registry, max_site_scoped=int(chinese_cfg.get("max_site_scoped", 2))
+        )
+        return cls(registry, search, runtime_label=f"api:{registry.default_provider}",
+                   chinese=optimizer)
 
     # ------------------------------------------------------------------
     # AgentRunner protocol
@@ -161,6 +173,12 @@ class LLMAgentRunner:
         round_num = int(context.get("round", 0))
         num_queries = int(context.get("num_queries") or 4)
         search_focus = context.get("search_focus") or ""
+        language = context.get("language", "")
+
+        # Chinese source adaptation (v3 Phase 3): Chinese topic/language adds
+        # Chinese query guidance + authoritative site-scoped searches.
+        chinese_mode = self.chinese.enabled_for(topic, language)
+        zh_plan = self.chinese.query_plan(topic, num_queries, "standard") if chinese_mode else None
 
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         store = read_json_or(os.path.join(workspace, "evidence", "evidence_store.json"), [])
@@ -171,7 +189,8 @@ class LLMAgentRunner:
             (
                 f"Today: {today}\nDebate topic: {topic}\nMode: {mode}\nRound: {round_num}\n"
                 f"Search focus (from the judge's last ruling, may be empty): {search_focus or '(none)'}\n\n"
-                f"Generate {num_queries} diverse, high-signal web search queries for this topic. "
+                + (f"{zh_plan['llm_query_guidance']}\n\n" if zh_plan else "")
+                + f"Generate {num_queries} diverse, high-signal web search queries for this topic. "
                 f"Cover authoritative sources first. Respond as JSON: "
                 f'{{"queries": ["query 1", "query 2", ...]}}'
             ),
@@ -185,9 +204,27 @@ class LLMAgentRunner:
                 results.extend(self.search.search(query, max_results=5))
             except ProviderError as e:
                 print(f"[{timestamp()}] search failed for {query!r}: {e}", flush=True)
-        print(f"[{timestamp()}] source ingest collected {len(results)} raw results from {len(queries)} queries")
+        if zh_plan:
+            # Deterministic coverage of 权威中文信源 (gov.cn / 新华社 / 人民网).
+            for scoped in zh_plan["site_scoped"]:
+                try:
+                    results.extend(self.search.search(
+                        scoped["query"], max_results=5,
+                        include_domains=scoped["include_domains"],
+                    ))
+                except ProviderError as e:
+                    print(f"[{timestamp()}] scoped search failed for {scoped['purpose']}: {e}", flush=True)
+        print(f"[{timestamp()}] source ingest collected {len(results)} raw results from "
+              f"{len(queries)} queries{' + site-scoped' if zh_plan else ''}")
 
         if results:
+            zh_rules = (
+                "- 中文信源可信度口径: 官方权威 (gov.cn/新华社/人民网/央视) → tier1_authoritative; "
+                "专业媒体 (财新/澎湃/一财等) → tier2_reputable; 自媒体平台 (知乎/微信公众号/百家号) → "
+                "tier3_general; 社交平台 (微博/贴吧) → tier4_social. Snippets stay verbatim in their "
+                "original language (中文摘录保持中文).\n"
+                if zh_plan else ""
+            )
             evidence_resp = self._chat_json(
                 step_id, "source-ingest.md", "ingest", tier,
                 (
@@ -202,6 +239,7 @@ class LLMAgentRunner:
                     f"{sorted(_EVIDENCE_ALLOWED_TIERS)}; evidence_track ∈ {sorted(_EVIDENCE_ALLOWED_TRACKS)}; "
                     f"freshness_status ∈ {sorted(_EVIDENCE_ALLOWED_FRESHNESS)} (use 'timeless' for "
                     f"mechanism/trend/history evidence).\n"
+                    f"{zh_rules}"
                     f"- For twitter items set social_credibility_flag ∈ likely_reliable|needs_verification|"
                     f"likely_unreliable and verification_priority accordingly; otherwise null/low.\n\n"
                     f"Search results:\n{json.dumps(results, ensure_ascii=False, indent=1)}\n\n"
@@ -219,6 +257,11 @@ class LLMAgentRunner:
                 url = item.get("url", "")
                 if (url, snippet_hash) in known:
                     continue
+                tier_value = item.get("credibility_tier") if item.get("credibility_tier") in _EVIDENCE_ALLOWED_TIERS else "tier3_general"
+                # Deterministic Chinese-source tier override wins over the LLM guess.
+                zh_tier = self.chinese.registry.classify(url) if self.chinese else None
+                if zh_tier:
+                    tier_value = zh_tier
                 entry = {
                     "evidence_id": f"evi_{snippet_hash[:8]}",
                     "source_type": item.get("source_type") or "web",
@@ -228,7 +271,7 @@ class LLMAgentRunner:
                     "retrieved_at": _now_iso(),
                     "snippet": item.get("snippet", ""),
                     "hash": snippet_hash,
-                    "credibility_tier": item.get("credibility_tier") if item.get("credibility_tier") in _EVIDENCE_ALLOWED_TIERS else "tier3_general",
+                    "credibility_tier": tier_value,
                     "freshness_status": item.get("freshness_status") if item.get("freshness_status") in _EVIDENCE_ALLOWED_FRESHNESS else "current",
                     "evidence_track": item.get("evidence_track") if item.get("evidence_track") in _EVIDENCE_ALLOWED_TRACKS else "fact",
                     "social_credibility_flag": item.get("social_credibility_flag"),
@@ -237,6 +280,9 @@ class LLMAgentRunner:
                     "discovered_by": "orchestrator",
                     "discovered_at_round": round_num,
                     "search_context": "initial_broad" if round_num == 0 else f"judge_feedback_round_{round_num}",
+                    "source_language": detect_source_language(
+                        item, self.chinese.registry if self.chinese else None
+                    ),
                 }
                 store.append(entry)
                 known.add((url, snippet_hash))

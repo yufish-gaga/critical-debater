@@ -4,6 +4,7 @@
 
 | 时间 / Time | 作者 / Author | 变更 / Change |
 |---|---|---|
+| 2026-08-30 | Claude | Phase 3 完成中文信源适配：`config/chinese_sources.yaml` 域名分级注册表（gov.cn/新华社/人民网→tier1），`ChineseQueryOptimizer` 权威站点限定搜索，Bocha 中文搜索后端，证据 `source_language` 标注与可信度确定性覆盖 / Phase 3 Chinese source adaptation done |
 | 2026-08-30 | Claude | Phase 2 完成多模型接入：`OpenAICompatProvider` 一类覆盖 DeepSeek/Kimi/GLM/Qwen/OpenAI/Ollama，`AnthropicProvider`，`LLMAgentRunner` 进程内执行能力步骤，Tavily 可插拔搜索，`config/models.yaml` 角色路由 / Phase 2 multi-model access done |
 | 2026-08-30 | Claude | Phase 1 完成核心架构迁移：LangGraph 状态图落地于 `src/critical_debater/`，17 节点 + 条件边 + Pro/Con fan-out，4-agent 逻辑与 v2 工作空间/审计完全兼容 / Phase 1 core migration done: LangGraph state graph in `src/critical_debater/` |
 | 2026-08-30 | Claude | 初始创建 / Initial creation |
@@ -14,7 +15,7 @@
 |---|---|
 | **版本** | v3.0.0-plan |
 | **创建日期** | 2026-08-30 |
-| **状态** | Phase 1-2 已完成（核心架构迁移 + 多模型接入）；Phase 3+ 规划中 |
+| **状态** | Phase 1-3 已完成（核心架构迁移 + 多模型接入 + 中文信源适配）；Phase 4+ 规划中 |
 | **目标框架** | LangGraph |
 
 ---
@@ -368,6 +369,13 @@ critical-debater-v3/
 - 中文搜索查询优化器
 - 集成中文搜索源
 - 中文证据提取和评估
+
+### Phase 3: 中文信源适配 (Week 5-6) ✅ 已完成 / DONE
+- 中文搜索查询优化器 → `evidence/chinese.py` `ChineseQueryOptimizer`：LLM 保持查询措辞的语义优先权（中文多角度查询 + 1 条英文交叉验证查询），优化器确定性补充**权威站点限定搜索**（`site:gov.cn` / 新华社 / 人民网），保证中文辩题不会只依赖英文或自媒体信源
+- 集成中文搜索源 → `models/search.py` 新增 `BochaSearchProvider`（博查中文搜索 API，`BOCHA_API_KEY`）；Tavily 原生支持 `include_domains` 站点限定，Bocha 以 `site:` 操作符实现；`search.provider: tavily | bocha | none`
+- 中文证据提取和评估 → `config/chinese_sources.yaml` 域名分级注册表：gov.cn/新华社/人民网/央视 → tier1_authoritative，财新/澎湃/一财 → tier2_reputable，知乎/微信公众号/百家号 → tier3_general，微博/贴吧 → tier4_social；ingest 后对已知中文域名做**确定性可信度覆盖**（LLM 分级错误也会被纠正）；新增 `source_language` 字段（zh/en）标注证据语言；中文模式下的提取提示词注入中文媒体可信度口径
+- 触发条件：辩题含中文，或 `language: zh`；英文辩题行为完全不变
+- 测试：93 个 pytest 用例（新增中文注册表分级/后缀安全匹配/语言检测/查询优化器/Bocha 请求与映射/中文 ingest 链路）
 
 ### Phase 4: 证据可信度优化 (Week 7-8)
 - 多维度评分体系

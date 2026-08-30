@@ -50,9 +50,12 @@ class FakeSearch:
     def __init__(self, results_per_query: int = 2):
         self.results_per_query = results_per_query
         self.queries: list[str] = []
+        self.scoped_queries: list[tuple[str, list[str] | None]] = []
 
-    def search(self, query: str, max_results: int = 5) -> list[dict]:
+    def search(self, query: str, max_results: int = 5,
+               include_domains: list[str] | None = None) -> list[dict]:
         self.queries.append(query)
+        self.scoped_queries.append((query, include_domains))
         return [
             {
                 "title": f"Result {i} for {query}",
