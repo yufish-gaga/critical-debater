@@ -6,6 +6,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { setToken, getToken } from "../api";
 import { startDebate } from "../slices/debateSlice";
 import type { AppDispatch, RootState } from "../store";
 import type { DebateStartRequest } from "../types";
@@ -14,6 +15,7 @@ import type { DebateStartRequest } from "../types";
 export function TopicConfig({ onStarted }: { onStarted: (id: string) => void }) {
   const dispatch = useDispatch<AppDispatch>();
   const starting = useSelector((s: RootState) => s.debate.starting);
+  const [token, setTokenState] = useState(getToken());
   const [form, setForm] = useState<DebateStartRequest>({
     topic: "",
     rounds: 3,
@@ -87,6 +89,15 @@ export function TopicConfig({ onStarted }: { onStarted: (id: string) => void }) 
             <MenuItem value="en">English</MenuItem>
           </TextField>
         </Stack>
+        <TextField
+          size="small"
+          label="API Token(可选,服务端启用鉴权时填写 / when the server requires auth)"
+          value={token}
+          onChange={(e) => {
+            setTokenState(e.target.value);
+            setToken(e.target.value.trim());
+          }}
+        />
         <Button variant="contained" disabled={starting || !form.topic.trim()} onClick={submit}>
           {starting ? "启动中… / starting…" : "开始辩论 / Start debate"}
         </Button>

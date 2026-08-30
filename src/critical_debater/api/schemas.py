@@ -1,4 +1,4 @@
-"""Pydantic schemas for the debate API (v3 Phase 6)."""
+"""Pydantic schemas for the debate API (v3 Phase 6 / v3.1 security)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,14 @@ class DebateStartRequest(BaseModel):
     depth: str = Field(default="standard", pattern="^(quick|standard|deep)$")
     mode: str = Field(default="balanced", pattern="^(balanced|red_team)$")
     language: str = Field(default="bilingual", pattern="^(en|zh|bilingual)$")
-    workspace: Optional[str] = Field(default=None, description="existing workspace dir; omitted → new one")
+    workspace: Optional[str] = Field(
+        default=None,
+        description="existing workspace dir (must resolve inside the service's allowed root)",
+    )
+    resume: bool = Field(
+        default=False,
+        description="continue an interrupted workspace from its checkpoint instead of restarting",
+    )
 
 
 class DebateStatus(BaseModel):
@@ -32,6 +39,12 @@ class DebateStartResponse(BaseModel):
     debate_id: str
     workspace: str
     status: str
+
+
+class DebateCancelResponse(BaseModel):
+    debate_id: str
+    status: str
+    cancelled: bool
 
 
 class ArtifactResponse(BaseModel):

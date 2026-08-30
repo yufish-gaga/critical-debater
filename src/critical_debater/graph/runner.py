@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 from ..config import DebateOptions
@@ -12,16 +13,58 @@ from .builder import build_debate_graph
 from .state import DebateState
 
 
-def build_initial_state(workspace: str, opts: DebateOptions) -> DebateState:
-    """Seed the graph state from run options + workspace config."""
+def map_resume_entry(config: dict, rounds: int) -> str:
+    """Map a workspace checkpoint (config.json status) to a graph entry point.
+
+    - ``in_progress`` / ``failed_round_N``  → re-enter the round loop there
+    - ``round_N_complete``                  → continue at round N+1 (final when done)
+    - ``failed_final_synthesis`` / ``failed_report_validation`` / ``complete`` → final stage
+    - anything else (new workspace)          → fresh start
+    """
+    status = str(config.get("status") or "")
+
+    if status == "in_progress" or status.startswith("failed_round_"):
+        return "rounds"
+    if status in ("failed_final_synthesis", "failed_report_validation", "complete"):
+        return "final"
+    match = re.fullmatch(r"round_(\d+)_complete", status)
+    if match:
+        return "rounds" if int(match.group(1)) < rounds else "final"
+    return "fresh"
+
+
+def _resume_round(config: dict, rounds: int) -> int:
+    """Round to re-enter on a 'rounds' resume."""
+    status = str(config.get("status") or "")
+    match = re.fullmatch(r"round_(\d+)_complete", status)
+    if match:
+        return min(int(match.group(1)) + 1, rounds)
+    if status.startswith("failed_round_"):
+        return min(int(status.rsplit("_", 1)[1]), rounds)
+    return max(1, min(int(config.get("current_round") or 1), rounds))
+
+
+def build_initial_state(workspace: str, opts: DebateOptions,
+                        resume: bool = False) -> DebateState:
+    """Seed the graph state from run options + workspace config.
+
+    With ``resume=True`` the workspace checkpoint (config.json status) decides
+    where the graph re-enters: completed rounds are skipped (断点恢复).
+    """
     try:
         cfg = load_config(workspace)
     except (FileNotFoundError, OSError):
         cfg = {}
+
+    resume_entry = map_resume_entry(cfg, opts.rounds) if resume else "fresh"
+    current_round = 1
+    if resume_entry == "rounds":
+        current_round = _resume_round(cfg, opts.rounds)
+
     return DebateState(
         topic=opts.topic,
         rounds=opts.rounds,
-        current_round=1,
+        current_round=current_round,
         depth=opts.depth,
         mode=opts.mode,
         language=opts.language,
@@ -46,16 +89,21 @@ def build_initial_state(workspace: str, opts: DebateOptions) -> DebateState:
         ingest_retries_used=0,
         step_timeout_sec=opts.step_timeout_sec,
         evidence_gate_passed=False,
+        resume_entry=resume_entry,
     )
 
 
-def run_debate(workspace: str, opts: DebateOptions, runner: Optional[AgentRunner] = None) -> DebateState:
+def run_debate(workspace: str, opts: DebateOptions, runner: Optional[AgentRunner] = None,
+               resume: bool = False) -> DebateState:
     """Run the full debate orchestration flow through the LangGraph graph.
+
+    With ``resume=True`` an interrupted workspace continues from its
+    checkpoint instead of restarting (断点恢复).
 
     Raises :class:`DebateStepFailure` on hard step failure (audit + config
     status are already updated at that point).
     """
-    initial_state = build_initial_state(workspace, opts)
+    initial_state = build_initial_state(workspace, opts, resume=resume)
     effective_runner = runner if runner is not None else get_runner()
     initial_state["model_provider"] = effective_runner.runtime
     graph = build_debate_graph(effective_runner)

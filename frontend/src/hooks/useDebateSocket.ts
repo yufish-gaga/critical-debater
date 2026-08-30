@@ -3,7 +3,7 @@ import { useDispatch } from "react-redux";
 import { applySnapshot, applyStatusEvent, pushAudit, setWsConnected } from "../slices/debateSlice";
 import type { AuditEntry } from "../types";
 
-const TERMINAL = new Set(["complete", "failed_initialization", "failed_final_synthesis", "failed_report_validation"]);
+const TERMINAL = new Set(["complete", "cancelled", "failed_initialization", "failed_final_synthesis", "failed_report_validation"]);
 const isTerminal = (s: string) => TERMINAL.has(s) || s.startsWith("failed_");
 
 /**
@@ -26,7 +26,9 @@ export function useDebateSocket(debateId: string | null, active: boolean): void 
 
     const connect = () => {
       const proto = window.location.protocol === "https:" ? "wss" : "ws";
-      const ws = new WebSocket(`${proto}://${window.location.host}/ws/${debateId}`);
+      const token = localStorage.getItem("cd_api_token") ?? "";
+      const query = token ? `?token=${encodeURIComponent(token)}` : "";
+      const ws = new WebSocket(`${proto}://${window.location.host}/ws/${debateId}${query}`);
       socketRef.current = ws;
 
       ws.onopen = () => {

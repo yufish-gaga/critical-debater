@@ -1,4 +1,5 @@
 import Alert from "@mui/material/Alert";
+import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
@@ -10,8 +11,10 @@ import StepContent from "@mui/material/StepContent";
 import StepLabel from "@mui/material/StepLabel";
 import Stepper from "@mui/material/Stepper";
 import Typography from "@mui/material/Typography";
-import { useSelector } from "react-redux";
-import type { RootState } from "../store";
+import { useDispatch, useSelector } from "react-redux";
+import { api } from "../api";
+import { applyStatusEvent } from "../slices/debateSlice";
+import type { AppDispatch, RootState } from "../store";
 
 const STAGES = [
   { key: "initialized", label: "初始化 / initialized" },
@@ -29,6 +32,7 @@ function stageIndex(status: string): number {
 
 /** 实时进度监控 / Live progress monitor fed by the WebSocket audit stream. */
 export function LiveProgress() {
+  const dispatch = useDispatch<AppDispatch>();
   const debate = useSelector((s: RootState) => s.debate);
   const status = debate.status?.status ?? "pending";
   const failed = status.startsWith("failed_");
@@ -51,6 +55,25 @@ export function LiveProgress() {
         <Alert severity="error" sx={{ mb: 2 }}>
           {debate.status.error}
         </Alert>
+      )}
+
+      {debate.debateId && !failed && !done && (
+        <Button
+          variant="outlined"
+          color="warning"
+          size="small"
+          sx={{ mb: 2 }}
+          onClick={async () => {
+            try {
+              await api.cancel(debate.debateId as string);
+              dispatch(applyStatusEvent("cancelling"));
+            } catch {
+              // cancel failures are surfaced by the status feed
+            }
+          }}
+        >
+          取消辩论 / Cancel debate
+        </Button>
       )}
 
       <Stepper activeStep={activeIdx} orientation="vertical" nonLinear>

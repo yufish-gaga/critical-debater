@@ -4,6 +4,7 @@
 
 | 时间 / Time | 作者 / Author | 变更 / Change |
 |---|---|---|
+| 2026-08-30 | Claude | v3.1: 新增安全边界（API Token 鉴权/工作空间围栏/取消端点）与断点恢复（`--resume`）说明 / v3.1: security boundary + checkpoint resume docs |
 | 2026-08-30 | Claude | 初始创建：项目特点与部署运行指南 / Initial creation: features + deployment guide |
 
 ---
@@ -202,6 +203,41 @@ websocat ws://127.0.0.1:8000/ws/<debate_id>
 | 强制 API / 强制 CLI | `CRITICAL_DEBATER_RUNTIME=api` 或 `cli` |
 | 用 claude/codex CLI(v2 方式) | 卸载密钥后 `runtime: auto` 会自动回落;或 `DEBATER_RUNTIME=claude|codex` |
 
+### 安全边界 / Security boundary(v3.1)
+
+| 机制 / Mechanism | 用法 / Usage |
+|---|---|
+| **API Token 鉴权** | 启动服务前 `export CRITICAL_DEBATER_API_TOKEN=<随机串>`(或 `create_app(api_token=...)`)。启用后所有 `/api/*` 请求需带 `Authorization: Bearer <token>` 或 `X-Api-Token` 头;`WS /ws/{id}` 需 `?token=` 查询参数。SPA 界面本身保持公开,可在 Setup 页填入 token(存 localStorage 自动注入)。未设置环境变量时鉴权关闭(本地开发) |
+| **工作空间围栏** | Web 启动的辩论工作空间被限制在 `DebateService(workspace_root=...)`(默认即 `runs_root`)之内;`POST /api/debates` 传入根外路径(含 `..` 穿越)一律 `403` |
+| **取消辩论** | `POST /api/debates/{id}/cancel` 请求协作式取消——在下一个能力步骤边界终止,config 状态置 `cancelled`;已完成辩论返回 `cancelled: false` |
+
+### 断点恢复 / Checkpoint resume(v3.1)
+
+辩论中断(CLI 崩溃、服务重启、人工取消)后可从检查点续跑,不重做已完成阶段:
+
+```bash
+# CLI: 加 --resume / resume an interrupted workspace
+PYTHONPATH=src python -m critical_debater /tmp/my-debate "辩题" 3 --resume
+
+# API: resume 标志 / resume flag on an existing workspace
+curl -X POST http://127.0.0.1:8000/api/debates \
+  -H "Content-Type: application/json" \
+  -d '{"topic":"...","rounds":3,"workspace":"/path/to/ws","resume":true}'
+```
+
+检查点即 `config.json` 的 `status` 字段,映射规则:
+
+| 检查点状态 / Checkpoint | 续跑入口 / Resume entry |
+|---|---|
+| `initialized` / 新工作空间 | 从头开始 / fresh start |
+| `in_progress`(第 M 轮中断) | 重跑第 M 轮 |
+| `failed_round_N` | 重跑第 N 轮 |
+| `round_N_complete`(N < 总轮数) | 从第 N+1 轮继续 |
+| `failed_final_synthesis` / `failed_report_validation` / `complete` | 直接进入最终综合阶段 |
+| `cancelled` | 重跑中断的轮次(按 `current_round`) |
+
+> 注意:resume 重跑某轮时会重新派发该轮的 LLM 步骤(产生调用费用);已完成的轮次与初始证据采集绝不重做。
+
 ---
 
 ## 六、产出物 / Artifacts
@@ -259,8 +295,11 @@ cd frontend && npm run build  # 前端类型检查 + 构建
 | 辩论卡在 `failed_round_N` | 查看 `logs/audit_trail.jsonl` 的 `step_failed` 条目与 `config.json` 状态;CLI 模式下多为超时，可在 config 调大 `step_timeout_sec` |
 | Web 界面空白 | `frontend/dist` 不存在：先执行 `cd frontend && npm install && npm run build` |
 | WebSocket 无法连接 | 反向代理未放行 `/ws` 升级头，或直接访问了前端 dev 端口而后端未启动 |
+| API 返回 401 | 服务端启用了 `CRITICAL_DEBATER_API_TOKEN`:请求带 `Authorization: Bearer`,WS 用 `?token=`,界面在 Setup 页填入 |
+| `POST /api/debates` 返回 403 | 传入的 workspace 在围栏根目录之外;改用 `runs_root` 内路径或调整 `DebateService(workspace_root=...)` |
+| 恢复后想重跑某一轮 | 删除该轮 `rounds/round_N/` 工件并把 config `status` 改为 `failed_round_N`(或 `in_progress`),再 `--resume` |
 | 中文辩题仍搜到英文源 | 确认 `config/chinese_sources.yaml` 存在且站点限定搜索未被禁用;辩题需含中文或 `language: zh` |
 
 ---
 
-*文档版本 / Doc version: 1.0 · 对应代码 / code: v3.0.0 Phase 1-7 (`c3c451a`) · 2026-08-30*
+*文档版本 / Doc version: 1.1 · 对应代码 / code: v3.1(security & resume)· 2026-08-30*

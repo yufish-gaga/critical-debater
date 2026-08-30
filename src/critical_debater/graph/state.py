@@ -63,3 +63,4 @@ class DebateState(TypedDict):
     ingest_retries_used: int
     step_timeout_sec: int
     evidence_gate_passed: bool
+    resume_entry: str  # 'fresh' | 'rounds' | 'final': where a resumed run re-enters

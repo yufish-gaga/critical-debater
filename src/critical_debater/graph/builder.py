@@ -5,7 +5,10 @@ deterministic gates added for v2 behavior parity are ``evidence_gate`` /
 ``source_ingest_retry`` and ``post_turns``)::
 
     START
-      → initialize_debate → source_ingest_initial → freshness_check_initial
+      → resume_router ─┬─ (fresh) → initialize_debate
+                       ├─ (rounds) → round_entry          # resume: skip done rounds
+                       └─ (final) → final_synthesis       # resume: skip all rounds
+      initialize_debate → source_ingest_initial → freshness_check_initial
       → evidence_gate ─┬─ (insufficient, retries left) → source_ingest_retry ─┐
                        │            ▲────────────────────────────────────────┘
                        └─ (ok) → round_entry ─┬─ (refresh due) → per_round_ingest ─┐
@@ -29,6 +32,15 @@ from .state import DebateState
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
+
+
+def _route_resume(state: DebateState) -> str:
+    entry = state.get("resume_entry", "fresh")
+    if entry == "rounds":
+        return "round_entry"
+    if entry == "final":
+        return "final_synthesis"
+    return "initialize_debate"
 
 
 def _route_after_evidence_gate(state: DebateState) -> str:
@@ -59,7 +71,16 @@ def build_debate_graph(runner: AgentRunner | None = None) -> "CompiledStateGraph
     for name, fn in nodes.items():
         graph.add_node(name, fn)
 
-    graph.add_edge(START, "initialize_debate")
+    graph.add_edge(START, "resume_router")
+    graph.add_conditional_edges(
+        "resume_router",
+        _route_resume,
+        {
+            "initialize_debate": "initialize_debate",
+            "round_entry": "round_entry",
+            "final_synthesis": "final_synthesis",
+        },
+    )
     graph.add_edge("initialize_debate", "source_ingest_initial")
     graph.add_edge("source_ingest_initial", "freshness_check_initial")
     graph.add_edge("freshness_check_initial", "evidence_gate")

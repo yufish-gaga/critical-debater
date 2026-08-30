@@ -8,8 +8,21 @@ import type {
 
 const BASE = "";
 
+// Optional API token (set from the UI, stored in localStorage). When the
+// server enables CRITICAL_DEBATER_API_TOKEN every /api call must carry it.
+export const getToken = (): string => localStorage.getItem("cd_api_token") ?? "";
+export const setToken = (token: string): void => {
+  if (token) localStorage.setItem("cd_api_token", token);
+  else localStorage.removeItem("cd_api_token");
+};
+
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+  const res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
   if (!res.ok) throw new Error(`${path}: ${res.status}`);
   return res.json() as Promise<T>;
 }
@@ -25,7 +38,7 @@ export const api = {
   async startDebate(req: DebateStartRequest): Promise<DebateStatus> {
     const res = await fetch(`${BASE}/api/debates`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(req),
     });
     if (!res.ok) throw new Error(`start failed: ${res.status}`);
@@ -51,10 +64,18 @@ export const api = {
       .then((a) => (a.exists ? a.data : null)),
 
   reportMarkdown: async (id: string): Promise<string | null> => {
-    const res = await fetch(`${BASE}/api/debates/${id}/report`);
+    const res = await fetch(`${BASE}/api/debates/${id}/report`, { headers: authHeaders() });
     if (!res.ok) return null;
     const body = (await res.json()) as { exists: boolean; content: string | null };
     return body.content;
+  },
+
+  cancel: async (id: string): Promise<void> => {
+    const res = await fetch(`${BASE}/api/debates/${id}/cancel`, {
+      method: "POST",
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error(`cancel failed: ${res.status}`);
   },
 };
 

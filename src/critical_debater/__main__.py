@@ -15,9 +15,11 @@ from .workspace import init_workspace, timestamp
 
 
 def main(argv: list[str] | None = None) -> None:
-    argv = list(sys.argv) if argv is None else argv
+    argv = list(sys.argv) if argv is None else list(argv)
+    resume = "--resume" in argv
+    argv = [a for a in argv if a != "--resume"]
     if len(argv) < 3:
-        print(f"Usage: {argv[0]} <workspace_dir> <config_or_topic> [rounds]")
+        print(f"Usage: {argv[0]} <workspace_dir> <config_or_topic> [rounds] [--resume]")
         sys.exit(1)
 
     workspace = os.path.abspath(argv[1])
@@ -28,19 +30,21 @@ def main(argv: list[str] | None = None) -> None:
         opts = DebateOptions.from_config(config_or_topic)
     else:
         opts = DebateOptions(topic=config_or_topic, rounds=rounds)
-        # Initialize workspace with explicit DebateConfig defaults.
-        init_workspace(
-            workspace,
-            opts.topic,
-            opts.rounds,
-            depth=opts.depth,
-            mode=opts.mode,
-            evidence_refresh=opts.evidence_refresh,
-            language=opts.language,
-        )
+        # Initialize workspace with explicit DebateConfig defaults (resume
+        # runs on an existing workspace keep their checkpoint untouched).
+        if not os.path.exists(os.path.join(workspace, "config.json")):
+            init_workspace(
+                workspace,
+                opts.topic,
+                opts.rounds,
+                depth=opts.depth,
+                mode=opts.mode,
+                evidence_refresh=opts.evidence_refresh,
+                language=opts.language,
+            )
 
     try:
-        run_debate(workspace, opts)
+        run_debate(workspace, opts, resume=resume)
     except DebateStepFailure as e:
         print(f"[{timestamp()}] Debate failed: {e}", file=sys.stderr)
         sys.exit(2)

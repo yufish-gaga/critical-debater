@@ -530,7 +530,28 @@ def make_nodes(runner: AgentRunner) -> dict:
         print(f"[{timestamp()}] quality assessment: overall={metrics.get('overall_score')}")
         return {"quality_metrics": metrics}
 
+    def resume_router(state: DebateState) -> dict:
+        """Entry-point router for resumed runs (v3.1 断点恢复).
+
+        Fresh runs pass straight through to initialize_debate; resumed runs
+        skip completed phases (config.json status is the checkpoint) and
+        backfill config defaults before re-entering the loop.
+        """
+        entry = state.get("resume_entry", "fresh")
+        if entry != "fresh":
+            workspace = state["workspace_path"]
+            ensure_workspace_config_defaults(workspace, {
+                "depth": state["depth"] or CONFIG_DEFAULTS["depth"],
+                "mode": state["mode"] or CONFIG_DEFAULTS["mode"],
+                "evidence_refresh": state["evidence_refresh"] or CONFIG_DEFAULTS["evidence_refresh"],
+                "language": state["language"] or CONFIG_DEFAULTS["language"],
+            })
+            where = (f"round {state['current_round']}" if entry == "rounds" else "final synthesis")
+            print(f"[{timestamp()}] Resuming debate at {where} (workspace checkpoint)")
+        return {}
+
     return {
+        "resume_router": resume_router,
         "initialize_debate": initialize_debate,
         "source_ingest_initial": source_ingest_initial,
         "freshness_check_initial": freshness_check_initial,

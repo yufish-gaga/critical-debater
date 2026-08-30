@@ -9,6 +9,7 @@
 | 2026-08-30 | Claude | v3 Phase 4: 证据可信度优化（五维加权评分/动态权重/证据关系图谱）/ v3 Phase 4: evidence credibility scoring + graph |
 | 2026-08-30 | Claude | v3 Phase 5: 质量评估体系（8 维评估/双语质量报告/SVG 仪表盘）/ v3 Phase 5: 8-dimension quality assessment + dashboard |
 | 2026-08-30 | Claude | v3 Phase 6-7: Web UI（React/MUI/RTK + FastAPI/WS）与集成测试 / v3 Phase 6-7: web UI + integration tests |
+| 2026-08-30 | Claude | v3.1: API 安全边界（Token 鉴权/工作空间围栏/取消）与断点恢复（--resume）/ v3.1: API security boundary + checkpoint resume |
 | 2026-08-30 | Claude | v3 Phase 1: LangGraph 核心架构迁移（`src/critical_debater/`），v2 套件保持不变 / v3 Phase 1: LangGraph core migration (`src/critical_debater/`), v2 suite untouched |
 | 2026-03-12 | Claude | 初始创建 / Initial creation |
 
@@ -141,6 +142,15 @@ pytest tests/test_api_integration.py -v
 ```
 
 Deviations from the plan, with rationale / 与计划的偏差及理由: frontend lives at `frontend/` (not `src/frontend/`) to keep the Python package clean; native WebSocket instead of Socket.IO (zero extra deps on both ends, same protocol semantics); Recharts only (D3-based, covers the dashboard needs).
+
+---
+
+## v3.1 — Security Boundary & Checkpoint Resume / v3.1 — 安全边界与断点恢复
+
+- **Auth / 鉴权**: set `CRITICAL_DEBATER_API_TOKEN` (or `create_app(api_token=...)`) to require a token on every `/api/*` request (`Authorization: Bearer …` / `X-Api-Token`) and every WS connection (`?token=`). The UI has a token field in the Setup tab (stored in localStorage). Unset → auth off, as before.
+- **Workspace confinement / 工作空间围栏**: user-supplied workspaces must resolve inside `DebateService(workspace_root=…)` (defaults to `runs_root`); anything else — including `..` traversal — is rejected with 403.
+- **Cancel / 取消**: `POST /api/debates/{id}/cancel` cooperatively cancels at the next agent-step boundary via a `CancellableRunner` wrapper (threads can't be killed); config status becomes `cancelled` and the WS stream terminates.
+- **Resume / 断点恢复**: interrupted workspaces continue from their `config.json` checkpoint — `python -m critical_debater <ws> <topic> [rounds] --resume` or `"resume": true` on `POST /api/debates`. Completed rounds and the initial evidence phase are never redone (see [docs/deployment-guide.md](docs/deployment-guide.md) for the status → entry mapping).
 
 ---
 

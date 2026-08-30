@@ -4,6 +4,7 @@
 
 | 时间 / Time | 作者 / Author | 变更 / Change |
 |---|---|---|
+| 2026-08-30 | Claude | v3.1 加固（提前落地 Phase 8 安全项）：API Token 鉴权中间件 + WS `?token=`、工作空间围栏（403）、`POST /cancel` 协作式取消（AgentRunner 接缝步骤间终止）、断点恢复（`--resume`/`resume:true`，config 检查点→resume_router 入口路由），修复 sync_status 终态复活竞态，133 测试 / v3.1 security + resume |
 | 2026-08-30 | Claude | Phase 6-7 完成：FastAPI 后端（REST + WebSocket 实时事件流）+ React 18/TS/MUI/Redux Toolkit/Recharts 前端（6 模块，Vite 构建，SPA 由后端挂载），集成测试 119 个 / Phase 6-7 frontend + integration done |
 | 2026-08-30 | Claude | Phase 5 完成质量评估体系：`DebateQualityAssessor` 8 维确定性评分（等权可配 `config/quality_rules.yaml`），双语 `quality_report.md` + 自包含 SVG 仪表盘 `quality_dashboard.html`（零依赖零外部资源）/ Phase 5 quality assessment done |
 | 2026-08-30 | Claude | Phase 4 完成证据可信度优化：`EvidenceCredibilityScorer` 五维加权评分（权威30%/时效15%/交叉验证25%/内容20%/透明10%），`config/credibility_rules.yaml` 规则外置，语境动态权重调整（红队/社媒占比/过期占比/后期轮次），证据关系图谱（复本/同域/共引/矛盾边），post_round 落盘 + final_synthesis 注入 / Phase 4 evidence credibility done |
@@ -427,7 +428,10 @@ critical-debater-v3/
 - 文档完善 → README（Phase 6/7 使用说明）、计划文档（本节）、api/__main__ 入口
 - 说明：浏览器级 E2E（Playwright）未纳入测试套件——需要浏览器运行时，当前以 API 层集成测试 + 构建验证 + 真实端口冒烟覆盖
 
-### Phase 8: 上线和优化 (Week 17+)
+### Phase 8: 上线和优化 (Week 17+) — 进行中 / IN PROGRESS
+- ✅ API 安全边界(v3.1 提前落地)：Token 鉴权(CRITICAL_DEBATER_API_TOKEN,HTTP 头 + WS 查询参数,常量时间比较)、工作空间围栏(realpath + commonpath,根外 403)、协作式取消(CancellableRunner 在 AgentRunner 接缝按步骤终止,config 置 `cancelled`)
+- ✅ 断点恢复(v3.1 提前落地)：`map_resume_entry` 将 config 检查点映射到 `resume_router` 入口(fresh/rounds/final),CLI `--resume`、API `resume:true`;修复 sync_status 将旧终态复活进新 run 的竞态
+- 待办 / TODO: 监控与日志采集对接、Docker/K8s 部署模板、前端代码分割与浏览器级 E2E
 - 生产环境部署
 - 监控和日志
 - 持续优化
