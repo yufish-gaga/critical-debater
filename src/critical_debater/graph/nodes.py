@@ -34,7 +34,9 @@ from ..agents.prompts import (
 )
 from ..claims.consistency import verify_claim_ledger_consistency
 from ..config import CONFIG_DEFAULTS, DEPTH_QUERY_COUNT
+from ..evidence.credibility import score_evidence_store
 from ..evidence.merge import evidence_store_path, merge_new_evidence
+from ..evidence.relations import write_evidence_graph
 from ..failures import fail_step, failed_result, require_step
 from ..models.base import AgentRunner
 from ..quality.assessor import assess_debate_quality
@@ -392,6 +394,13 @@ def make_nodes(runner: AgentRunner) -> dict:
 
         total_evidence = merge_new_evidence(workspace, round_num)
 
+        # v3 Phase 4: multi-dimension credibility scoring + relationship graph.
+        scoring = score_evidence_store(workspace, round_num, mode=state["mode"])
+        scores = {item["evidence_id"]: item["total"] for item in scoring.get("items", [])}
+        write_evidence_graph(workspace, scores=scores)
+        print(f"[{timestamp()}] evidence credibility scored: average={scoring.get('average')} "
+              f"(adjustments: {', '.join(scoring.get('adjustments_applied') or ['none'])})")
+
         update_config(workspace, {
             "current_round": round_num,
             "status": f"round_{round_num}_complete",
@@ -404,6 +413,7 @@ def make_nodes(runner: AgentRunner) -> dict:
             "claim_ledger": read_json(ledger_path) if os.path.exists(ledger_path) else [],
             "evidence_store": read_json(store_path) if os.path.exists(store_path) else [],
             "evidence_count": total_evidence,
+            "evidence_weights": scores,
         }
 
     def next_round(state: DebateState) -> dict:

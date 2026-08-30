@@ -34,6 +34,9 @@ def assess_debate_quality(workspace: str, topic: str, rounds_planned: int) -> di
     verified = status_counts.get("verified", 0)
     cross_validation_rate = round(verified / len(claims), 4) if claims else 0.0
 
+    # v3 Phase 4: credibility scoring produced by post_round.
+    scoring = read_json_or(os.path.join(workspace, "evidence", "evidence_credibility.json"), {})
+
     metrics = {
         "generated_at": timestamp(),
         "assessment_version": "phase1_deterministic_baseline",
@@ -45,12 +48,19 @@ def assess_debate_quality(workspace: str, topic: str, rounds_planned: int) -> di
             "by_credibility_tier": dict(Counter(str(e.get("credibility_tier")) for e in evidence)),
             "by_source_type": dict(Counter(str(e.get("source_type")) for e in evidence)),
             "by_freshness_status": dict(Counter(str(e.get("freshness_status")) for e in evidence)),
+            "by_source_language": dict(Counter(str(e.get("source_language")) for e in evidence)),
             "corroborated": sum(1 for e in evidence if e.get("corroboration_status") == "corroborated"),
         },
         "claims": {
             "total": len(claims),
             "by_status": dict(status_counts),
             "cross_validation_rate": cross_validation_rate,
+        },
+        "credibility": {
+            "average": scoring.get("average", 0.0),
+            "scored_items": len(scoring.get("items", [])),
+            "weights_used": scoring.get("weights_used", {}),
+            "adjustments_applied": scoring.get("adjustments_applied", []),
         },
     }
 

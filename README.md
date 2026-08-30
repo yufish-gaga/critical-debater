@@ -6,6 +6,7 @@
 |---|---|---|
 | 2026-08-30 | Claude | v3 Phase 2: 多模型接入（DeepSeek/Kimi/GLM/Qwen/OpenAI/Anthropic/Ollama，API key 走环境变量，可插拔搜索，角色路由）/ v3 Phase 2: multi-model provider layer |
 | 2026-08-30 | Claude | v3 Phase 3: 中文信源适配（域名分级注册表/权威站点限定搜索/Bocha 中文搜索/证据语言标注）/ v3 Phase 3: Chinese source adaptation |
+| 2026-08-30 | Claude | v3 Phase 4: 证据可信度优化（五维加权评分/动态权重/证据关系图谱）/ v3 Phase 4: evidence credibility scoring + graph |
 | 2026-08-30 | Claude | v3 Phase 1: LangGraph 核心架构迁移（`src/critical_debater/`），v2 套件保持不变 / v3 Phase 1: LangGraph core migration (`src/critical_debater/`), v2 suite untouched |
 | 2026-03-12 | Claude | 初始创建 / Initial creation |
 
@@ -91,6 +92,18 @@ chinese_sources:
   config: config/chinese_sources.yaml
   max_site_scoped: 2
 ```
+
+---
+
+## v3 Phase 4 — Evidence Credibility Optimization / v3 Phase 4 — 证据可信度优化
+
+Every evidence item now carries a deterministic 0-1 credibility score.
+每条证据现在都带确定性可信度分数。
+
+- **Five-dimension weighted score / 五维加权评分**: 来源权威性 30% · 交叉验证 25% · 内容质量 20% · 时效性 15% · 透明度 10% (`EvidenceCredibilityScorer`, rules in [`config/credibility_rules.yaml`](config/credibility_rules.yaml)). Cross-validation combines the corroboration status with judge claim verdicts (verified +, contested −) and same-domain duplicate dilution. Reasoning-track/timeless evidence **never** decays with age (contract rule).
+- **Dynamic weights / 动态权重**: red-team mode boosts cross-validation scrutiny; social-heavy or stale-heavy stores raise the matching dimension; late rounds tighten judge scrutiny. Adjusted weights are renormalized to 1.0 and recorded with the scores.
+- **Evidence relationship graph / 证据关系图谱**: `evidence/evidence_graph.json` links duplicates, same-domain clusters, co-cited evidence, claim→evidence support edges, and judge-flagged contradictions.
+- **Consumed downstream / 下游消费**: scores land in `state.evidence_weights` each round; the final-synthesis prompt injects `credibility_score` per item and forbids anchoring conclusions on low-credibility social/uncorroborated items; the quality baseline reports the credibility average.
 
 ---
 

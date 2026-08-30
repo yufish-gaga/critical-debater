@@ -21,6 +21,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from ..evidence.credibility import load_credibility_scores
 from ..evidence.chinese import (
     ChineseQueryOptimizer,
     ChineseSourceRegistry,
@@ -63,10 +64,15 @@ def _truncate(text: Any, limit: int = 600) -> str:
     return text if len(text) <= limit else text[:limit] + "…"
 
 
-def _evidence_context(store: list[dict], snippet_limit: int = 400) -> list[dict]:
+def _evidence_context(store: list[dict], snippet_limit: int = 400,
+                      scores: dict[str, float] | None = None) -> list[dict]:
     """Compact evidence view for prompt injection."""
-    return [
-        {
+    scores = scores or {}
+    entries = []
+    for e in store:
+        if not isinstance(e, dict):
+            continue
+        entry = {
             "evidence_id": e.get("evidence_id"),
             "source_type": e.get("source_type"),
             "url": e.get("url"),
@@ -77,10 +83,12 @@ def _evidence_context(store: list[dict], snippet_limit: int = 400) -> list[dict]
             "freshness_status": e.get("freshness_status"),
             "evidence_track": e.get("evidence_track"),
             "corroboration_status": e.get("corroboration_status"),
+            "source_language": e.get("source_language"),
         }
-        for e in store
-        if isinstance(e, dict)
-    ]
+        if e.get("evidence_id") in scores:
+            entry["credibility_score"] = scores[e["evidence_id"]]
+        entries.append(entry)
+    return entries
 
 
 class LLMAgentRunner:
@@ -505,8 +513,13 @@ class LLMAgentRunner:
             json.dumps(rounds_payload, ensure_ascii=False)[:45000],
             "\n=== Final claim ledger ===",
             json.dumps(read_json_or(os.path.join(workspace, "claims", "claim_ledger.json"), []), ensure_ascii=False, indent=1),
-            "\n=== Evidence store ===",
-            json.dumps(_evidence_context(read_json_or(os.path.join(workspace, "evidence", "evidence_store.json"), []), snippet_limit=200), ensure_ascii=False, indent=1),
+            "\n=== Evidence store (credibility_score = deterministic multi-dimension score 0-1; "
+            "weight high-credibility evidence more, never anchor conclusions on low-credibility "
+            "social/uncorroborated items) ===",
+            json.dumps(_evidence_context(
+                read_json_or(os.path.join(workspace, "evidence", "evidence_store.json"), []),
+                snippet_limit=200, scores=load_credibility_scores(workspace),
+            ), ensure_ascii=False, indent=1),
             "\nOutput contract — a FinalReport JSON object with AT LEAST these keys:\n"
             '{"topic", "total_rounds", "generated_at", "verdict_summary", "report_path": '
             '"reports/debate_report.md", "verified_facts": [..], "probable_conclusions": [..], '

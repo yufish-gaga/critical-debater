@@ -4,6 +4,7 @@
 
 | 时间 / Time | 作者 / Author | 变更 / Change |
 |---|---|---|
+| 2026-08-30 | Claude | Phase 4 完成证据可信度优化：`EvidenceCredibilityScorer` 五维加权评分（权威30%/时效15%/交叉验证25%/内容20%/透明10%），`config/credibility_rules.yaml` 规则外置，语境动态权重调整（红队/社媒占比/过期占比/后期轮次），证据关系图谱（复本/同域/共引/矛盾边），post_round 落盘 + final_synthesis 注入 / Phase 4 evidence credibility done |
 | 2026-08-30 | Claude | Phase 3 完成中文信源适配：`config/chinese_sources.yaml` 域名分级注册表（gov.cn/新华社/人民网→tier1），`ChineseQueryOptimizer` 权威站点限定搜索，Bocha 中文搜索后端，证据 `source_language` 标注与可信度确定性覆盖 / Phase 3 Chinese source adaptation done |
 | 2026-08-30 | Claude | Phase 2 完成多模型接入：`OpenAICompatProvider` 一类覆盖 DeepSeek/Kimi/GLM/Qwen/OpenAI/Ollama，`AnthropicProvider`，`LLMAgentRunner` 进程内执行能力步骤，Tavily 可插拔搜索，`config/models.yaml` 角色路由 / Phase 2 multi-model access done |
 | 2026-08-30 | Claude | Phase 1 完成核心架构迁移：LangGraph 状态图落地于 `src/critical_debater/`，17 节点 + 条件边 + Pro/Con fan-out，4-agent 逻辑与 v2 工作空间/审计完全兼容 / Phase 1 core migration done: LangGraph state graph in `src/critical_debater/` |
@@ -15,7 +16,7 @@
 |---|---|
 | **版本** | v3.0.0-plan |
 | **创建日期** | 2026-08-30 |
-| **状态** | Phase 1-3 已完成（核心架构迁移 + 多模型接入 + 中文信源适配）；Phase 4+ 规划中 |
+| **状态** | Phase 1-4 已完成（架构迁移 + 多模型 + 中文信源 + 证据可信度）；Phase 5+ 规划中 |
 | **目标框架** | LangGraph |
 
 ---
@@ -381,6 +382,13 @@ critical-debater-v3/
 - 多维度评分体系
 - 动态权重调整算法
 - 证据关系图谱
+
+### Phase 4: 证据可信度优化 (Week 7-8) ✅ 已完成 / DONE
+- 多维度评分体系 → `evidence/credibility.py` `EvidenceCredibilityScorer`：计划口径五维加权 —— 来源权威性 30%（tier 基础分 + 信源类型增减 + 中文注册表锚定）、时效性 15%（时间带衰减；**reasoning 轨/timeless 永不衰减**——契约关键规则）、交叉验证 25%（corroboration 状态 + 裁判论点裁定 verified 加分/contested 减分 + 同域复本稀释）、内容质量 20%（摘录信息量 + 元数据 + 社媒旗标）、透明度 10%（url/发布方/日期披露）；全部确定性计算，零 LLM 调用
+- 动态权重调整算法 → `adjust_weights`：规则化语境调整 —— red_team 模式强化交叉验证、社交信源占比 >40% 双重提防、过期事实占比 >30% 提升时效权重、第 3 轮起裁判 scrutiny 收紧；调整后归一化到 1.0；规则外置于 `config/credibility_rules.yaml`（环境变量 `CRITICAL_CREDIBILITY_RULES_CONFIG` 可覆盖）
+- 证据关系图谱 → `evidence/relations.py`：节点（证据 + 论点）与五类边 —— `duplicate_of`（同 URL/同哈希）、`same_domain`（同域聚类，带每节点边数上限）、`co_cited`（同claim共引，权重=共引次数）、`supports`（论点引用）、`contradicts`（裁判 conflict_details 矛盾对）；落盘 `evidence/evidence_graph.json` 含统计摘要
+- 图接入：`post_round` 每轮评分 + 图谱落盘，`state.evidence_weights`（计划 DebateState 字段）携带 evidence_id→分数；`final_synthesis` 提示词注入 `credibility_score` 并约束低可信度社媒证据不得锚定结论；质量基线新增 credibility 均值与 source_language 分布
+- 测试：107 个 pytest 用例（新增五维边界/权重归一化与调整触发/图谱五类边/工作区集成）
 
 ### Phase 5: 质量评估体系 (Week 9-10)
 - 8 维度质量评估

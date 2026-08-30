@@ -1,0 +1,69 @@
+# Credibility rules (v3 Phase 4)
+# 证据可信度评分规则:五维加权评分(计划文档口径),权重可按辩论语境动态调整。
+# 综合可信度 = Σ 维度分 × 权重,输出 0-1。
+
+weights:                     # 基础权重(会随语境动态调整后归一化)
+  authority: 0.30            # 来源权威性
+  freshness: 0.15            # 时效性
+  cross_validation: 0.25     # 交叉验证
+  content_quality: 0.20      # 内容质量
+  transparency: 0.10         # 透明度
+
+tier_base:                   # 可信度分级基础分
+  tier1_authoritative: 1.0
+  tier2_reputable: 0.75
+  tier3_general: 0.45
+  tier4_social: 0.15
+
+source_type_adjust:          # 信源类型对权威性的增减
+  government: 0.10
+  academic: 0.10
+  twitter: -0.10
+
+freshness:                   # 时效性:fact 轨证据按时限衰减;timeless 永不衰减
+  reasoning_track: 1.0       # reasoning 轨 / timeless 状态 → 满分(契约关键规则)
+  stale: 0.1                 # 已标记 stale
+  no_date: 0.5               # 无日期可考
+  age_bands_days:            # [最大天数, 得分],取首个命中的区间
+    - [7, 1.0]
+    - [30, 0.9]
+    - [180, 0.7]
+    - [365, 0.5]
+    - [730, 0.3]
+  fallback_older: 0.15
+
+cross_validation:            # 交叉验证
+  corroborated: 1.0
+  uncorroborated_or_null: 0.4
+  contradicted: 0.0
+  verified_claim_boost: 0.15     # 有 verified 论点引用 → 加分
+  contested_claim_penalty: 0.15  # 有 contested 论点引用 → 减分
+  duplicate_domain_dilution: 0.9 # 同域复本稀释
+
+content_quality:             # 内容质量(软性启发,不用于切分内容)
+  short_snippet_chars: 80
+  medium_snippet_chars: 200
+  short_score: 0.3
+  medium_score: 0.6
+  long_score: 0.9
+  has_date_bonus: 0.05
+  has_publisher_bonus: 0.05
+  social_flag_adjust:
+    likely_reliable: 0.10
+    needs_verification: 0.0
+    likely_unreliable: -0.30
+
+# 动态权重调整(按顺序应用,最后归一化到 1.0)
+adjustments:
+  red_team_mode:             # 红队模式:强化交叉验证审视
+    when_mode: red_team
+    deltas: {cross_validation: 0.10, authority: -0.05}
+  social_heavy:              # 社交信源占比过高 → 双重加分提防
+    when_social_share_above: 0.4
+    deltas: {cross_validation: 0.05, authority: 0.05}
+  stale_heavy:               # 过期事实占比高 → 时效性更关键
+    when_stale_share_above: 0.3
+    deltas: {freshness: 0.05}
+  late_round_scrutiny:       # 后期轮次裁判 scrutiny 更严
+    when_round_from: 3
+    deltas: {cross_validation: 0.05}
