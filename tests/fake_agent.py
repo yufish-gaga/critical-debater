@@ -168,9 +168,12 @@ class FakeScriptedRunner:
     # -- AgentRunner protocol --------------------------------------------
 
     def run(self, step_id: str, prompt: str, model_tier: str = "balanced",
-            timeout_sec: int = 300) -> StepResult:
+            timeout_sec: int = 300, context: dict | None = None) -> StepResult:
         self._record(step_id, model_tier)
-        workspace = _extract_workspace(prompt)
+        if context and context.get("workspace"):
+            workspace = context["workspace"]
+        else:
+            workspace = _extract_workspace(prompt)
 
         if step_id.startswith("source_ingest_round_0"):
             self._add_evidence(workspace, self.initial_evidence)

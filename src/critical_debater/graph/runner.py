@@ -25,6 +25,7 @@ def build_initial_state(workspace: str, opts: DebateOptions) -> DebateState:
         depth=opts.depth,
         mode=opts.mode,
         language=opts.language,
+        output_format=opts.output_format,
         evidence_store=[],
         evidence_weights={},
         claim_ledger=[],
@@ -55,7 +56,9 @@ def run_debate(workspace: str, opts: DebateOptions, runner: Optional[AgentRunner
     status are already updated at that point).
     """
     initial_state = build_initial_state(workspace, opts)
-    graph = build_debate_graph(runner if runner is not None else get_runner())
+    effective_runner = runner if runner is not None else get_runner()
+    initial_state["model_provider"] = effective_runner.runtime
+    graph = build_debate_graph(effective_runner)
 
     # Long loops (many rounds + ingest retries) exceed LangGraph's default
     # recursion limit of 25; budget generously per round.

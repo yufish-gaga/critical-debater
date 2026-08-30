@@ -1,8 +1,71 @@
-# Model tier configuration (v3 Phase 1)
-# Generic tier -> runtime-specific model name. Phase 2 will extend this file
-# with provider-level settings (api providers, local models, dynamic switch).
-# 模型层级配置:通用层级 → 各运行时具体模型名;Phase 2 将扩展 provider 级配置。
+# Model & provider configuration (v3 Phase 2)
+# 多模型接入配置:一个 openai_compatible 类即可覆盖 DeepSeek/Kimi/GLM/Qwen/OpenAI/
+# 以及本地 Ollama/vLLM;Anthropic 单独一类。API key 通过环境变量提供,
+# 绝不写入本文件(只写环境变量名)。
+#
+# Quick start / 快速开始:
+#   export DEEPSEEK_API_KEY=sk-...     # + optional: TAVILY_API_KEY for web search
+#   python -m critical_debater <workspace> <topic> [rounds]
+#   # or force a transport: CRITICAL_DEBATER_RUNTIME=api|cli
 
+# Transport selection: api | cli | auto (env CRITICAL_DEBATER_RUNTIME overrides).
+# auto: api when any provider key is present, else the claude/codex CLI, else keyless local providers.
+runtime: auto
+
+# Role → provider routing: the judge can run on a different vendor than the debaters.
+# 角色路由:裁判可以与辩手使用不同厂商的模型。
+role_models:
+  ingest:    {provider: deepseek, tier: balanced}
+  pro:       {provider: deepseek, tier: balanced}
+  con:       {provider: deepseek, tier: balanced}
+  judge:     {provider: deepseek, tier: deep}
+  synthesis: {provider: deepseek, tier: deep}
+
+providers:
+  deepseek:
+    type: openai_compatible
+    base_url: https://api.deepseek.com/v1
+    api_key_env: DEEPSEEK_API_KEY
+    models: {fast: deepseek-chat, balanced: deepseek-chat, deep: deepseek-reasoner}
+
+  moonshot:                       # Kimi / 月之暗面
+    type: openai_compatible
+    base_url: https://api.moonshot.cn/v1
+    api_key_env: MOONSHOT_API_KEY
+    models: {fast: kimi-k2-0905-preview, balanced: kimi-k2-0905-preview, deep: kimi-k2-0905-preview}
+
+  zhipu:                          # 智谱 GLM
+    type: openai_compatible
+    base_url: https://open.bigmodel.cn/api/paas/v4
+    api_key_env: ZHIPU_API_KEY
+    models: {fast: glm-4.5-air, balanced: glm-4.5, deep: glm-4.5}
+
+  openai:
+    type: openai_compatible
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+    models: {fast: gpt-4o-mini, balanced: gpt-4o, deep: gpt-4o}
+
+  anthropic:
+    type: anthropic
+    api_key_env: ANTHROPIC_API_KEY
+    models: {fast: claude-sonnet-4-5, balanced: claude-sonnet-4-5, deep: claude-opus-4-1}
+
+  ollama:                         # local models; no API key needed / 本地模型,无需 key
+    type: openai_compatible
+    base_url: http://localhost:11434/v1
+    api_key_env: null
+    api_key_required: false
+    models: {fast: qwen2.5:7b, balanced: qwen2.5:14b, deep: qwen2.5:32b}
+
+# Web search backend for the source-ingest capability (API providers have no
+# built-in browsing). tavily requires TAVILY_API_KEY; none → ingest honestly
+# yields no evidence and the evidence gate will stop the run.
+search:
+  provider: tavily                # tavily | none
+  api_key_env: TAVILY_API_KEY
+
+# Legacy CLI tier mapping (used only when runtime=cli).
 tiers:
   claude:
     fast: sonnet

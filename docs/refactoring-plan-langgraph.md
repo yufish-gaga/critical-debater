@@ -4,6 +4,7 @@
 
 | 时间 / Time | 作者 / Author | 变更 / Change |
 |---|---|---|
+| 2026-08-30 | Claude | Phase 2 完成多模型接入：`OpenAICompatProvider` 一类覆盖 DeepSeek/Kimi/GLM/Qwen/OpenAI/Ollama，`AnthropicProvider`，`LLMAgentRunner` 进程内执行能力步骤，Tavily 可插拔搜索，`config/models.yaml` 角色路由 / Phase 2 multi-model access done |
 | 2026-08-30 | Claude | Phase 1 完成核心架构迁移：LangGraph 状态图落地于 `src/critical_debater/`，17 节点 + 条件边 + Pro/Con fan-out，4-agent 逻辑与 v2 工作空间/审计完全兼容 / Phase 1 core migration done: LangGraph state graph in `src/critical_debater/` |
 | 2026-08-30 | Claude | 初始创建 / Initial creation |
 
@@ -13,7 +14,7 @@
 |---|---|
 | **版本** | v3.0.0-plan |
 | **创建日期** | 2026-08-30 |
-| **状态** | Phase 1 已完成（核心架构迁移）；Phase 2+ 规划中 |
+| **状态** | Phase 1-2 已完成（核心架构迁移 + 多模型接入）；Phase 3+ 规划中 |
 | **目标框架** | LangGraph |
 
 ---
@@ -354,6 +355,14 @@ critical-debater-v3/
 - 实现模型抽象层
 - 集成 OpenAI、Anthropic、本地模型
 - 模型配置系统
+
+### Phase 2: 多模型接入 (Week 3-4) ✅ 已完成 / DONE
+- 实现模型抽象层 → `models/provider.py`：`OpenAICompatProvider`（一个类覆盖 DeepSeek / Kimi / GLM / Qwen / OpenAI / 本地 Ollama/vLLM——同为 OpenAI Chat Completions 协议，仅 base_url/key/model 不同）+ `AnthropicProvider`（Claude Messages API）；stdlib `urllib` 传输，零新增依赖；4xx 不重试、5xx/超时指数退避重试
+- 集成多厂商 + 本地模型 → 内置 DeepSeek/Kimi/智谱/OpenAI/Anthropic/Ollama 预设；API key 走环境变量（配置文件只存 `api_key_env` 名，绝不落盘）
+- 模型配置系统 → `config/models.yaml`：`providers` + `role_models` 角色路由（裁判可与辩手用不同厂商）+ `search` 搜索后端 + `runtime: api|cli|auto`；`AgentRunner` dispatch 增加 `context` 结构化参数
+- 能力执行层 → `models/api_runner.py` `LLMAgentRunner`：注入能力指令 + 工作区上下文（证据库/论点账本/上轮工件），JSON 输出契约 + 工件落盘；`final_synthesis` 走 LLM 生成 `final_report.json` + 确定性渲染器产出双语 `debate_report.md`
+- 可插拔搜索 → `models/search.py`：Tavily 实现 + Null 降级（无搜索时证据门诚实失败，不让模型编造信源）；Phase 3 中文信源复用同一协议
+- 测试：77 个 pytest 用例（新增 provider/搜索/注册表/API runner 各步 + API 全链路 e2e）
 
 ### Phase 3: 中文信源适配 (Week 5-6)
 - 中文搜索查询优化器

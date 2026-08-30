@@ -4,6 +4,7 @@
 
 | 时间 / Time | 作者 / Author | 变更 / Change |
 |---|---|---|
+| 2026-08-30 | Claude | v3 Phase 2: 多模型接入（DeepSeek/Kimi/GLM/Qwen/OpenAI/Anthropic/Ollama，API key 走环境变量，可插拔搜索，角色路由）/ v3 Phase 2: multi-model provider layer |
 | 2026-08-30 | Claude | v3 Phase 1: LangGraph 核心架构迁移（`src/critical_debater/`），v2 套件保持不变 / v3 Phase 1: LangGraph core migration (`src/critical_debater/`), v2 suite untouched |
 | 2026-03-12 | Claude | 初始创建 / Initial creation |
 
@@ -24,7 +25,7 @@ The orchestration core has been migrated to LangGraph per
 
 - **Graph orchestration / 图编排**: 17 nodes cover the full lifecycle — init → evidence gate (retry loop) → per-round refresh → parallel Pro/Con → judge audit → claim consistency → final synthesis → report gate → quality baseline. Conditional edges drive the round loop; the Pro/Con fan-out runs both sides concurrently.
 - **Behavior preserved / 行为不变**: identical capability prompts, model tiers, step ids, retry counts, audit events, workspace layout, and failure statuses (`failed_*`) as v2. Both orchestrators operate on the same workspaces.
-- **Agent runner abstraction / 执行层抽象**: `AgentRunner` protocol isolates the graph from the transport (Phase 1: `claude -p` / `codex exec` CLI; Phase 2 will add API-backed providers via `config/models.yaml`).
+- **Agent runner abstraction / 执行层抽象**: `AgentRunner` protocol isolates the graph from the transport (Phase 1: `claude -p` / `codex exec` CLI; Phase 2 adds API-backed providers via `config/models.yaml`).
 - **No bash/jq dependency / 无 bash/jq 依赖**: schema validation, audit append (with dedupe), and workspace init are pure Python ports of the v2 scripts.
 
 ```bash
@@ -40,6 +41,33 @@ Source lives in `src/critical_debater/` (`graph/` state graph, `models/` runner
 abstraction, `agents/` capability prompts, `evidence/`, `claims/`,
 `synthesis/`, `quality/`). The v2 skill suite in `critical-debater-suite/`
 remains unchanged and compatible.
+
+---
+
+## v3 Phase 2 — Multi-Model Providers / v3 Phase 2 — 多模型接入
+
+Any vendor can now drive the debate — not just the Claude/Codex CLIs.
+现在任何厂商的模型都可以驱动辩论，不再局限于 Claude/Codex CLI。
+
+- **One class covers most vendors / 一个类覆盖大多数厂商**: `OpenAICompatProvider` works with **DeepSeek, Moonshot Kimi, Zhipu GLM, Alibaba Qwen, OpenAI**, and local **Ollama / vLLM** endpoints (they all speak the OpenAI Chat Completions protocol). `AnthropicProvider` covers Claude.
+- **API keys via env / 密钥走环境变量**: config stores only the variable *name* (`api_key_env`), never the key itself.
+- **Role routing / 角色路由**: `role_models` maps each debate role (ingest / pro / con / judge / synthesis) to any provider — e.g. DeepSeek debaters with an Anthropic judge.
+- **In-process execution / 进程内执行**: `LLMAgentRunner` injects capability instructions + workspace context (evidence store, claim ledger, round artifacts), enforces a JSON output contract, and writes artifacts; `final_synthesis` = LLM `final_report.json` + deterministic bilingual renderer for `debate_report.md`.
+- **Pluggable search / 可插拔搜索**: source-ingest uses a `SearchProvider` (Tavily included; add Baidu/Bocha in Phase 3 behind the same protocol). No search configured → the evidence gate fails honestly instead of letting the model fabricate sources.
+
+```bash
+# DeepSeek drives the whole debate / DeepSeek 驱动整场辩论
+export DEEPSEEK_API_KEY=sk-...
+export TAVILY_API_KEY=tvly-...        # optional web search / 可选联网搜索
+python -m critical_debater <workspace_dir> <topic> [rounds]
+
+# Transport selection / 传输选择
+#   auto (default): api when a provider key is present, else claude/codex CLI
+#   force: CRITICAL_DEBATER_RUNTIME=api|cli
+```
+
+Providers, per-role model mapping, and the search backend are configured in
+[`config/models.yaml`](config/models.yaml).
 
 ---
 

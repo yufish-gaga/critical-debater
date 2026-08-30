@@ -97,6 +97,14 @@ def make_nodes(runner: AgentRunner) -> dict:
             build_source_ingest_broad_prompt(state["topic"], state["depth"], num_queries, workspace),
             model_tier="balanced",
             timeout_sec=state["step_timeout_sec"],
+            context={
+                "workspace": workspace,
+                "topic": state["topic"],
+                "depth": state["depth"],
+                "mode": "broad",
+                "round": 0,
+                "num_queries": num_queries,
+            },
         )
         require_step(workspace, "failed_initialization", "phase1_source_ingest", result)
         return {}
@@ -108,6 +116,7 @@ def make_nodes(runner: AgentRunner) -> dict:
             build_freshness_check_prompt(workspace),
             model_tier="balanced",
             timeout_sec=state["step_timeout_sec"],
+            context={"workspace": workspace},
         )
         require_step(workspace, "failed_initialization", "phase1_freshness", result)
         return {}
@@ -149,6 +158,13 @@ def make_nodes(runner: AgentRunner) -> dict:
             build_source_ingest_broaden_prompt(state["topic"], workspace),
             model_tier="balanced",
             timeout_sec=state["step_timeout_sec"],
+            context={
+                "workspace": workspace,
+                "topic": state["topic"],
+                "mode": "broad",
+                "round": 0,
+                "broaden_keywords": True,
+            },
         )
         require_step(workspace, "failed_initialization", "phase1_source_ingest_retry", result)
         return {"ingest_retries_used": retry_no}
@@ -183,6 +199,13 @@ def make_nodes(runner: AgentRunner) -> dict:
             build_source_ingest_focused_prompt(state["topic"], round_num, search_focus, workspace),
             model_tier="balanced",
             timeout_sec=state["step_timeout_sec"],
+            context={
+                "workspace": workspace,
+                "topic": state["topic"],
+                "mode": "focused",
+                "round": round_num,
+                "search_focus": search_focus,
+            },
         )
         require_step(workspace, failed_status, "phase2_per_round_ingest", refresh)
 
@@ -191,6 +214,7 @@ def make_nodes(runner: AgentRunner) -> dict:
             build_freshness_check_prompt(workspace),
             model_tier="balanced",
             timeout_sec=state["step_timeout_sec"],
+            context={"workspace": workspace, "round": round_num},
         )
         require_step(workspace, failed_status, "phase2_per_round_freshness", freshness)
 
@@ -223,6 +247,15 @@ def make_nodes(runner: AgentRunner) -> dict:
                 ),
                 model_tier="balanced",
                 timeout_sec=state["step_timeout_sec"],
+                context={
+                    "workspace": workspace,
+                    "topic": state["topic"],
+                    "side": side,
+                    "round": round_num,
+                    "mode": state["mode"],
+                    "speculation": state["speculation"],
+                    "depth": state["depth"],
+                },
             )
             require_step(workspace, failed_status, "phase2_debate_turn", result)
 
@@ -247,6 +280,16 @@ def make_nodes(runner: AgentRunner) -> dict:
                         build_debate_turn_fix_prompt(side, round_num, workspace),
                         model_tier="balanced",
                         timeout_sec=state["step_timeout_sec"],
+                        context={
+                            "workspace": workspace,
+                            "topic": state["topic"],
+                            "side": side,
+                            "round": round_num,
+                            "mode": state["mode"],
+                            "speculation": state["speculation"],
+                            "depth": state["depth"],
+                            "fix_validation": True,
+                        },
                     )
                     ok, _ = validate_json_file(turn_path, f"{side}_turn")
                     if fix.success and ok:
@@ -291,6 +334,7 @@ def make_nodes(runner: AgentRunner) -> dict:
             build_judge_audit_prompt(round_num, workspace),
             model_tier="deep",
             timeout_sec=state["step_timeout_sec"],
+            context={"workspace": workspace, "round": round_num},
         )
         require_step(workspace, failed_status, "phase2_judge_audit", result)
 
@@ -336,6 +380,7 @@ def make_nodes(runner: AgentRunner) -> dict:
             build_claim_ledger_update_prompt(round_num, workspace),
             model_tier="balanced",
             timeout_sec=state["step_timeout_sec"],
+            context={"workspace": workspace, "round": round_num},
         )
         require_step(workspace, failed_status, "phase2_claim_ledger_update", claim_update)
 
@@ -380,6 +425,13 @@ def make_nodes(runner: AgentRunner) -> dict:
             build_final_synthesis_prompt(workspace),
             model_tier="deep",
             timeout_sec=final_timeout,
+            context={
+                "workspace": workspace,
+                "topic": state["topic"],
+                "rounds": state["rounds"],
+                "language": state["language"],
+                "output_format": state.get("output_format", "full_report"),
+            },
         )
 
         if not result.success:

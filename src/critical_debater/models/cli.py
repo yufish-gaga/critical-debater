@@ -12,8 +12,10 @@ import os
 import shutil
 import subprocess
 import sys
+from typing import Optional
+
 from ..workspace import timestamp
-from .base import StepResult
+from .base import Context, StepResult
 
 # Per-step timeout floors for Codex, which is web-heavy on ingest/synthesis
 # steps and consistently exceeds the default in practice (v2 behavior).
@@ -58,7 +60,7 @@ class ClaudeCliRunner:
     runtime = "claude"
 
     def run(self, step_id: str, prompt: str, model_tier: str = "balanced",
-            timeout_sec: int = 300) -> StepResult:
+            timeout_sec: int = 300, context: Optional[Context] = None) -> StepResult:
         from .registry import resolve_model
 
         model = resolve_model(model_tier, self.runtime)
@@ -72,7 +74,7 @@ class CodexCliRunner:
     runtime = "codex"
 
     def run(self, step_id: str, prompt: str, model_tier: str = "balanced",
-            timeout_sec: int = 300) -> StepResult:
+            timeout_sec: int = 300, context: Optional[Context] = None) -> StepResult:
         from .registry import resolve_model
 
         model = resolve_model(model_tier, self.runtime)

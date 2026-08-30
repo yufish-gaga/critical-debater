@@ -30,6 +30,7 @@ class DebateState(TypedDict):
     depth: str
     mode: str
     language: str
+    output_format: str
 
     # --- 证据系统 / evidence system ---
     evidence_store: List[Dict]          # mirror of evidence_store.json
