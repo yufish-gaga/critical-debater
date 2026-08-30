@@ -132,6 +132,6 @@ def test_static_frontend_mount_when_built():
     client = TestClient(create_app(service=service, frontend_dist=FRONTEND_DIST))
     resp = client.get("/")
     assert resp.status_code == 200
-    assert "Critical Debater v3" in resp.text
+    assert "Critical Debater" in resp.text and "辩论系统" in resp.text
     # SPA fallback: unknown client-side routes serve the app shell too.
     assert client.get("/some/client/route").status_code == 200

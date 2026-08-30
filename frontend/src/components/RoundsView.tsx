@@ -48,7 +48,7 @@ export function RoundsView({ refreshToken }: { refreshToken: number }) {
   if (!debateId) {
     return (
       <Paper sx={{ p: 3 }}>
-        <Typography color="text.secondary">先启动一场辩论 / start a debate first</Typography>
+        <Typography color="text.secondary">先启动一场辩论</Typography>
       </Paper>
     );
   }
@@ -60,7 +60,7 @@ export function RoundsView({ refreshToken }: { refreshToken: number }) {
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Stack direction="row" spacing={2} alignItems="center">
               <Typography variant="subtitle1" fontWeight={700}>
-                第 {round} 轮 / Round {round}
+                第 {round} 轮
               </Typography>
               <Chip size="small" label={`正方 ${pro?.arguments.length ?? 0} 论点`} />
               <Chip size="small" label={`反方 ${con?.arguments.length ?? 0} 论点`} />
@@ -78,7 +78,7 @@ export function RoundsView({ refreshToken }: { refreshToken: number }) {
               return (
                 <Paper key={side} variant="outlined" sx={{ p: 2, mb: 2 }}>
                   <Typography variant="subtitle2" color={side === "pro" ? "primary" : "secondary"}>
-                    {side === "pro" ? "正方 / PRO" : "反方 / CON"}
+                    {side === "pro" ? "正方" : "反方"}
                   </Typography>
                   {turn.arguments.map((arg, i) => (
                     <Stack key={i} spacing={0.5} sx={{ mt: 1 }}>
@@ -87,7 +87,7 @@ export function RoundsView({ refreshToken }: { refreshToken: number }) {
                         <Chip size="small" variant="outlined" label={arg.claim_type} />
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        机制 / mechanism: {arg.reasoning_chain?.mechanism ?? "—"}
+                        机制: {arg.reasoning_chain?.mechanism ?? "—"}
                       </Typography>
                     </Stack>
                   ))}
@@ -106,7 +106,7 @@ export function RoundsView({ refreshToken }: { refreshToken: number }) {
             })}
             {judge && (
               <Paper variant="outlined" sx={{ p: 2, bgcolor: "grey.50" }}>
-                <Typography variant="subtitle2">裁判 / JUDGE — {judge.round_summary}</Typography>
+                <Typography variant="subtitle2">裁判 — {judge.round_summary}</Typography>
                 {judge.verification_results.map((v, i) => (
                   <Typography key={i} variant="caption" display="block">
                     {v.claim_id} → {v.new_status}: {v.reasoning}
@@ -119,7 +119,7 @@ export function RoundsView({ refreshToken }: { refreshToken: number }) {
       ))}
       {rounds.length === 0 && (
         <Paper sx={{ p: 3 }}>
-          <Typography color="text.secondary">暂无轮次数据 / no round data yet</Typography>
+          <Typography color="text.secondary">暂无轮次数据</Typography>
         </Paper>
       )}
     </Stack>

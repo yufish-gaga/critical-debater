@@ -41,12 +41,12 @@ export function EvidenceBrowser({ refreshToken }: { refreshToken: number }) {
   return (
     <Paper sx={{ p: 3 }}>
       <Typography variant="h6" gutterBottom>
-        证据浏览器 / Evidence browser ({items.length})
+        证据浏览器({items.length})
       </Typography>
       <TextField
         select
         size="small"
-        label="可信度分级 / tier"
+        label="可信度分级"
         value={tierFilter}
         onChange={(e) => setTierFilter(e.target.value)}
         sx={{ width: 240, mb: 2, mr: 2 }}
@@ -59,7 +59,7 @@ export function EvidenceBrowser({ refreshToken }: { refreshToken: number }) {
       </TextField>
       <TextField
         size="small"
-        label="搜索 / search"
+        label="搜索"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         sx={{ width: 280, mb: 2 }}
@@ -68,13 +68,13 @@ export function EvidenceBrowser({ refreshToken }: { refreshToken: number }) {
         <Table size="small" stickyHeader>
           <TableHead>
             <TableRow>
-              <TableCell>ID</TableCell>
-              <TableCell>Tier</TableCell>
-              <TableCell>Score</TableCell>
-              <TableCell>Lang</TableCell>
-              <TableCell>Publisher</TableCell>
-              <TableCell>Corroboration</TableCell>
-              <TableCell>Snippet</TableCell>
+              <TableCell>编号</TableCell>
+              <TableCell>分级</TableCell>
+              <TableCell>评分</TableCell>
+              <TableCell>语言</TableCell>
+              <TableCell>来源</TableCell>
+              <TableCell>交叉验证</TableCell>
+              <TableCell>摘要</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -93,7 +93,7 @@ export function EvidenceBrowser({ refreshToken }: { refreshToken: number }) {
             ))}
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7}>暂无证据 / no evidence yet</TableCell>
+                <TableCell colSpan={7}>暂无证据</TableCell>
               </TableRow>
             )}
           </TableBody>

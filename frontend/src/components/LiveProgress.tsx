@@ -17,11 +17,11 @@ import { applyStatusEvent } from "../slices/debateSlice";
 import type { AppDispatch, RootState } from "../store";
 
 const STAGES = [
-  { key: "initialized", label: "初始化 / initialized" },
-  { key: "evidence_gathered", label: "证据采集 / evidence gathered" },
-  { key: "in_progress", label: "辩论轮次 / rounds in progress" },
-  { key: "final_synthesis", label: "综合报告 / final synthesis" },
-  { key: "complete", label: "质量评估 / quality assessment" },
+  { key: "initialized", label: "初始化" },
+  { key: "evidence_gathered", label: "证据采集" },
+  { key: "in_progress", label: "辩论轮次" },
+  { key: "final_synthesis", label: "综合报告" },
+  { key: "complete", label: "质量评估" },
 ];
 
 function stageIndex(status: string): number {
@@ -37,16 +37,24 @@ export function LiveProgress() {
   const status = debate.status?.status ?? "pending";
   const failed = status.startsWith("failed_");
   const done = status === "complete";
+  const cancelled = status === "cancelled";
   const activeIdx = failed ? 2 : done ? STAGES.length - 1 : stageIndex(status);
+  // The socket closes once a terminal status arrives, so a finished debate
+  // legitimately reads wsConnected=false — say "ended", not "offline".
+  const badge = done || failed || cancelled
+    ? "已结束"
+    : debate.wsConnected
+      ? "WebSocket 已连接"
+      : "未连接";
 
   return (
     <Paper sx={{ p: 3 }}>
       <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-        <Typography variant="h6">实时进度 / Live progress</Typography>
+        <Typography variant="h6">实时进度</Typography>
         <Chip
           size="small"
-          color={debate.wsConnected ? "success" : "default"}
-          label={debate.wsConnected ? "WebSocket 已连接 / live" : "未连接 / offline"}
+          color={debate.wsConnected && !done && !failed && !cancelled ? "success" : "default"}
+          label={badge}
         />
         <Chip size="small" color={failed ? "error" : done ? "success" : "info"} label={status} />
       </Stack>
@@ -83,7 +91,7 @@ export function LiveProgress() {
             <StepContent>
               {stage.key === "in_progress" && (
                 <Typography variant="body2" color="text.secondary">
-                  当前轮 / current round: {debate.status?.current_round ?? "-"} / {debate.status?.rounds ?? "-"}
+                  当前轮:{debate.status?.current_round ?? "-"} / {debate.status?.rounds ?? "-"}
                 </Typography>
               )}
             </StepContent>
@@ -107,7 +115,7 @@ export function LiveProgress() {
         ))}
         {debate.audit.length === 0 && (
           <ListItem>
-            <ListItemText secondary="等待事件… / waiting for events…" />
+            <ListItemText secondary="等待事件…" />
           </ListItem>
         )}
       </List>

@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import { api } from "../api";
+import { saveDebateId } from "../session";
 import type { AuditEntry, DebateStartRequest, DebateStatus } from "../types";
 
 interface DebateState {
@@ -9,6 +10,7 @@ interface DebateState {
   wsConnected: boolean;
   error: string | null;
   starting: boolean;
+  attaching: boolean;
 }
 
 const initialState: DebateState = {
@@ -18,16 +20,8 @@ const initialState: DebateState = {
   wsConnected: false,
   error: null,
   starting: false,
+  attaching: false,
 };
-
-export const startDebate = createAsyncThunk(
-  "debate/start",
-  async (req: DebateStartRequest, { dispatch }) => {
-    const status = await api.startDebate(req);
-    dispatch(debateSlice.actions.setStatus(status));
-    return status;
-  },
-);
 
 const debateSlice = createSlice({
   name: "debate",
@@ -50,6 +44,19 @@ const debateSlice = createSlice({
       if (state.status) {
         state.status.status = action.payload.status;
         state.status.error = action.payload.error ?? null;
+      } else {
+        // First contact after a cold restore: build the minimum the UI needs.
+        state.status = {
+          debate_id: action.payload.debate_id,
+          workspace: "",
+          topic: action.payload.topic,
+          rounds: action.payload.rounds,
+          current_round: 0,
+          status: action.payload.status,
+          started_at: null,
+          finished_at: null,
+          error: action.payload.error ?? null,
+        };
       }
     },
     pushAudit(state, action: PayloadAction<AuditEntry>) {
@@ -78,9 +85,44 @@ const debateSlice = createSlice({
       .addCase(startDebate.rejected, (state, action) => {
         state.starting = false;
         state.error = action.error.message ?? "start failed";
+      })
+      .addCase(attachDebate.pending, (state) => {
+        state.attaching = true;
+      })
+      .addCase(attachDebate.fulfilled, (state) => {
+        state.attaching = false;
+      })
+      .addCase(attachDebate.rejected, (state) => {
+        // Auto-restore on load: the run may be gone (server restarted).
+        // App clears the stale id; no user-facing error.
+        state.attaching = false;
       });
   },
 });
+
+/** Start a debate and adopt it as the active one (id kept for reload). */
+export const startDebate = createAsyncThunk(
+  "debate/start",
+  async (req: DebateStartRequest, { dispatch }) => {
+    const status = await api.startDebate(req);
+    saveDebateId(status.debate_id);
+    dispatch(debateSlice.actions.setDebateId(status.debate_id));
+    dispatch(debateSlice.actions.setStatus(status));
+    return status;
+  },
+);
+
+/** Re-attach to a debate that is running (or finished) on the server. */
+export const attachDebate = createAsyncThunk(
+  "debate/attach",
+  async (id: string, { dispatch }) => {
+    const status = await api.getStatus(id);
+    saveDebateId(id);
+    dispatch(debateSlice.actions.setDebateId(id));
+    dispatch(debateSlice.actions.setStatus(status));
+    return status;
+  },
+);
 
 export const {
   setDebateId,

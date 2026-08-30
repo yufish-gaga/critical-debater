@@ -29,7 +29,7 @@ export function QualityPanel({ refreshToken }: { refreshToken: number }) {
     return (
       <Paper sx={{ p: 3 }}>
         <Typography color="text.secondary">
-          质量报告在辩论完成后生成 / the quality report is produced after the debate completes
+          质量报告在辩论完成后生成
         </Typography>
       </Paper>
     );
@@ -43,7 +43,7 @@ export function QualityPanel({ refreshToken }: { refreshToken: number }) {
   return (
     <Paper sx={{ p: 3 }}>
       <Typography variant="h6" gutterBottom>
-        质量评估 / Quality assessment — overall {report.overall_score.toFixed(2)}
+        质量评估 — 综合 {report.overall_score.toFixed(2)}
       </Typography>
       <div style={{ width: "100%", height: 360 }}>
         <ResponsiveContainer>
@@ -60,7 +60,7 @@ export function QualityPanel({ refreshToken }: { refreshToken: number }) {
           <TableBody>
             {report.dimensions.map((d) => (
               <TableRow key={d.dimension}>
-                <TableCell>{d.label}</TableCell>
+                <TableCell>{d.label.split(" / ")[0]}</TableCell>
                 <TableCell align="right" sx={{ fontVariantNumeric: "tabular-nums" }}>
                   {d.score.toFixed(2)}
                 </TableCell>

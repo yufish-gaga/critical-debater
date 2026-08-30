@@ -1,3 +1,4 @@
+import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
@@ -12,9 +13,10 @@ import type { AppDispatch, RootState } from "../store";
 import type { DebateStartRequest } from "../types";
 
 /** 辩题配置面板 / Topic configuration panel. */
-export function TopicConfig({ onStarted }: { onStarted: (id: string) => void }) {
+export function TopicConfig({ onStarted }: { onStarted: () => void }) {
   const dispatch = useDispatch<AppDispatch>();
   const starting = useSelector((s: RootState) => s.debate.starting);
+  const error = useSelector((s: RootState) => s.debate.error);
   const [token, setTokenState] = useState(getToken());
   const [form, setForm] = useState<DebateStartRequest>({
     topic: "",
@@ -30,7 +32,7 @@ export function TopicConfig({ onStarted }: { onStarted: (id: string) => void }) 
   const submit = async () => {
     const result = await dispatch(startDebate(form));
     if (startDebate.fulfilled.match(result)) {
-      onStarted(result.payload.debate_id);
+      onStarted();
     }
   };
 
@@ -41,16 +43,16 @@ export function TopicConfig({ onStarted }: { onStarted: (id: string) => void }) 
       </Typography>
       <Stack spacing={2}>
         <TextField
-          label="辩题 / Topic"
+          label="辩题"
           multiline
           minRows={2}
           value={form.topic}
           onChange={(e) => set("topic", e.target.value)}
-          placeholder="例：中国应全面放开低空经济管制 / Example: Should low-altitude economy be fully liberalized?"
+          placeholder="例：中国应全面放开低空经济管制"
         />
         <Stack direction="row" spacing={2}>
           <TextField
-            label="轮数 / Rounds"
+            label="轮数"
             type="number"
             value={form.rounds}
             onChange={(e) => set("rounds", Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
@@ -58,7 +60,7 @@ export function TopicConfig({ onStarted }: { onStarted: (id: string) => void }) 
           />
           <TextField
             select
-            label="深度 / Depth"
+            label="深度"
             value={form.depth}
             onChange={(e) => set("depth", e.target.value)}
             sx={{ width: 160 }}
@@ -69,7 +71,7 @@ export function TopicConfig({ onStarted }: { onStarted: (id: string) => void }) 
           </TextField>
           <TextField
             select
-            label="模式 / Mode"
+            label="模式"
             value={form.mode}
             onChange={(e) => set("mode", e.target.value)}
             sx={{ width: 180 }}
@@ -79,7 +81,7 @@ export function TopicConfig({ onStarted }: { onStarted: (id: string) => void }) 
           </TextField>
           <TextField
             select
-            label="语言 / Language"
+            label="语言"
             value={form.language}
             onChange={(e) => set("language", e.target.value)}
             sx={{ width: 180 }}
@@ -91,15 +93,20 @@ export function TopicConfig({ onStarted }: { onStarted: (id: string) => void }) 
         </Stack>
         <TextField
           size="small"
-          label="API Token(可选,服务端启用鉴权时填写 / when the server requires auth)"
+          label="API Token(可选,服务端启用鉴权时填写)"
           value={token}
           onChange={(e) => {
             setTokenState(e.target.value);
             setToken(e.target.value.trim());
           }}
         />
+        {error && (
+          <Alert severity="error">
+            启动失败 / start failed: {error}
+          </Alert>
+        )}
         <Button variant="contained" disabled={starting || !form.topic.trim()} onClick={submit}>
-          {starting ? "启动中… / starting…" : "开始辩论 / Start debate"}
+          {starting ? "启动中…" : "开始辩论"}
         </Button>
       </Stack>
     </Paper>

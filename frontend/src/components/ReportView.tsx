@@ -21,7 +21,7 @@ export function ReportView({ refreshToken }: { refreshToken: number }) {
   return (
     <Paper sx={{ p: 3 }}>
       <Typography variant="h6" gutterBottom>
-        最终报告 / Final report
+        最终报告
       </Typography>
       {markdown ? (
         <Typography

@@ -9,17 +9,16 @@ const isTerminal = (s: string) => TERMINAL.has(s) || s.startsWith("failed_");
 /**
  * Live progress over native WebSocket: snapshot → audit/status events.
  * Reconnects with backoff while the run is active; closes for good once a
- * terminal status arrives. Runs per debateId only — status events never
- * re-open the socket.
+ * terminal status arrives. Opens only when a debate is attached.
  */
-export function useDebateSocket(debateId: string | null, active: boolean): void {
+export function useDebateSocket(debateId: string | null): void {
   const dispatch = useDispatch();
   const socketRef = useRef<WebSocket | null>(null);
   const attemptRef = useRef(0);
   const terminalRef = useRef(false);
 
   useEffect(() => {
-    if (!debateId || !active) return;
+    if (!debateId) return;
     terminalRef.current = false;
     let closedByUs = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -69,5 +68,5 @@ export function useDebateSocket(debateId: string | null, active: boolean): void 
       socketRef.current?.close();
       dispatch(setWsConnected(false));
     };
-  }, [debateId, active, dispatch]);
+  }, [debateId, dispatch]);
 }
